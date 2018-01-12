@@ -34,6 +34,7 @@
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -41,31 +42,32 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AMLP.cs" />
+    <Compile Include="Algorithms\AMLP.cs" />
     <Compile Include="ArgParser.cs" />
-    <Compile Include="BaselineLearner.cs" />
-    <Compile Include="BPTT.cs" />
-    <Compile Include="Clustering.cs" />
-    <Compile Include="DMLP.cs" />
-    <Compile Include="NNRev.cs" />
-    <Compile Include="RNN.cs" />
-    <Compile Include="SAE.cs" />
-    <Compile Include="DBN.cs" />
-    <Compile Include="DecisionTree.cs" />
-    <Compile Include="Dropout.cs" />
-    <Compile Include="InstanceBasedLearner.cs" />
+    <Compile Include="Algorithms\BaselineLearner.cs" />
+    <Compile Include="Algorithms\BPTT.cs" />
+    <Compile Include="Algorithms\Clustering.cs" />
+    <Compile Include="Algorithms\DMLP.cs" />
+    <Compile Include="Algorithms\NNRev.cs" />
+    <Compile Include="Algorithms\RNN.cs" />
+    <Compile Include="Algorithms\SAE.cs" />
+    <Compile Include="Algorithms\DBN.cs" />
+    <Compile Include="Algorithms\DecisionTree.cs" />
+    <Compile Include="Algorithms\Dropout.cs" />
+    <Compile Include="Algorithms\InstanceBasedLearner.cs" />
     <Compile Include="Matrix.cs" />
-    <Compile Include="NeuralNet.cs" />
-    <Compile Include="Perceptron.cs" />
+    <Compile Include="Algorithms\NeuralNet.cs" />
+    <Compile Include="Algorithms\Perceptron.cs" />
+    <Compile Include="Parameters.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="ReLU.cs" />
+    <Compile Include="Algorithms\ReLU.cs" />
     <Compile Include="Scanner.cs" />
-    <Compile Include="SMLP.cs">
+    <Compile Include="Algorithms\SMLP.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="SOM.cs" />
-    <Compile Include="SupervisedLearner.cs" />
+    <Compile Include="Algorithms\SOM.cs" />
+    <Compile Include="Algorithms\SupervisedLearner.cs" />
     <Compile Include="SystemManager.cs" />
     <Compile Include="VMatrix.cs" />
   </ItemGroup>

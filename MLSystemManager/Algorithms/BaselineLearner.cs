@@ -9,7 +9,7 @@
  * If the learning model you're using doesn't do as well as this one,
  * it's time to find a new learning model.
  */
-namespace MLSystemManager
+namespace MLSystemManager.Algorithms
 {
 	public class BaselineLearner : SupervisedLearner
 	{

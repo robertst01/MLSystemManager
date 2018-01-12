@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace MLSystemManager
+namespace MLSystemManager.Algorithms
 {
 	public class ReLU : SupervisedLearner
 	{

@@ -7,7 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace MLSystemManager
+namespace MLSystemManager.Algorithms
 {
 	/// <summary>
 	/// Deep Belief Network

@@ -6,7 +6,7 @@
 using System;
 using System.IO;
 
-namespace MLSystemManager
+namespace MLSystemManager.Algorithms
 {
 	public abstract class SupervisedLearner
 	{

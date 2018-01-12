@@ -1,15 +1,19 @@
-﻿#define parallel
+﻿//#define parallel
 
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace MLSystemManager
+namespace MLSystemManager.Algorithms
 {
-	public class NeuralNet : SupervisedLearner
+	/// <summary>
+	/// Reversed Neural Net - train from input to output
+	/// </summary>
+	class RNN : SupervisedLearner
 	{
 		private List<List<Node>> m_layers;
 		private Random m_rand;
@@ -21,7 +25,7 @@ namespace MLSystemManager
 		private double m_actBeta = 1;
 		private bool m_actRandom = false;
 		private int[] m_hidden = null;
-		private bool m_normalizeOutputs = false;
+		private double m_boost = 1.0;
 		private StreamWriter m_outputFile = null;
 
 		public class Node
@@ -92,6 +96,17 @@ namespace MLSystemManager
 					}
 				}
 			}
+
+			public void InitDeltas()
+			{
+				if (deltas != null)
+				{
+					for (var i = 0; i < deltas.Length; i++)
+					{
+						deltas[i] = 0;
+					}
+				}
+			}
 		}
 
 		public class InputNode : Node
@@ -130,13 +145,13 @@ namespace MLSystemManager
 			}
 		}
 
-		public NeuralNet()
+		public RNN()
 		{
 			m_rand = new Random();
 			m_layers = new List<List<Node>>();
 		}
 
-		public NeuralNet(Random rand, double rate, double momentum, string activation, string actParameter, int[] hidden, bool normalizeOutputs)
+		public RNN(Random rand, double rate, double momentum, string activation, string actParameter, int[] hidden, double boost)
 		{
 			m_rand = rand;
 			m_rate = rate;
@@ -161,8 +176,8 @@ namespace MLSystemManager
 			}
 
 			m_hidden = hidden;
+			m_boost = boost;
 			m_layers = new List<List<Node>>();
-			m_normalizeOutputs = normalizeOutputs;
 		}
 
 		public override void Train(Matrix features, Matrix labels, double[] colMin, double[] colMax)
@@ -290,10 +305,11 @@ namespace MLSystemManager
 				Console.Write('x');
 			}
 			Console.WriteLine(oNodes.Count);
-			
+
 			Console.WriteLine("AF: " + m_activation);
 			Console.WriteLine(string.Format("AParam: {0},{1},{2},{3}", m_actAlpha, m_actThreshold, m_actBeta, m_actRandom));
-			
+			Console.WriteLine("Boost: " + m_boost);
+
 			Console.WriteLine("Epoch\tMSE (validation)");
 			if (m_outputFile != null)
 			{
@@ -310,71 +326,93 @@ namespace MLSystemManager
 				m_outputFile.WriteLine("Momentum: " + m_momentum);
 				m_outputFile.WriteLine("AF: " + m_activation);
 				m_outputFile.WriteLine(string.Format("AParam: {0},{1},{2},{3}", m_actAlpha, m_actThreshold, m_actBeta, m_actRandom));
+				m_outputFile.WriteLine("Boost: " + m_boost);
 				m_outputFile.WriteLine();
 				m_outputFile.WriteLine("Weights");
 				PrintWeights();
 				m_outputFile.WriteLine("Epoch\tMSE (validation)");
 			}
 
-			int epoch = 0;							// current epoch number
-			int bestEpoch = 0;						// epoch number of best MSE
-			int eCount = 0;							// number of epochs since the best MSE
-			bool checkDone = false;					// if true, check to see if we're done
-			double initialMSE = double.MaxValue;	// MSE for first epoch
-			double bestMSE = double.MaxValue;		// best validation MSE so far
-
-			for (; ; )
+			for (int round = 1; round < m_layers.Count; round++)
 			{
-				// shuffle the training set
-				trainFeatures.Shuffle(m_rand, trainLabels);
+				int epoch = 0;							// current epoch number
+				int bestEpoch = 0;						// epoch number of best MSE
+				int eCount = 0;							// number of epochs since the best MSE
+				bool checkDone = false;					// if true, check to see if we're done
+				double initialMSE = double.MaxValue;	// MSE for first epoch
+				double bestMSE = double.MaxValue;		// best validation MSE so far
 
-				TrainEpoch(++epoch, trainFeatures, trainLabels);
-
-				// check the MSE after this epoch
-				double mse = VGetMSE(validationFeatures, validationLabels);
-
-				Console.WriteLine(string.Format("{0}-{1}\t{2}", epoch, eCount, mse));
-				if (m_outputFile != null)
+				for (; ; )
 				{
-					m_outputFile.WriteLine(string.Format("{0}-{1}\t{2}", epoch, eCount, mse));
-					m_outputFile.Flush();
-				}
+					// shuffle the training set
+					trainFeatures.Shuffle(m_rand, trainLabels);
 
-				if ((mse == 0.0) || (epoch > 5000))
-				{
-					break;
-				}
-				else if ((epoch == 1) || (mse < bestMSE))
-				{
-					if (epoch == 1)
+					TrainEpoch(++epoch, trainFeatures, trainLabels, round);
+
+					// check the MSE after this epoch
+					double mse = VGetMSE(validationFeatures, validationLabels);
+
+					Console.WriteLine(string.Format("{0}:{1}-{2}\t{3}", round, epoch, eCount, mse));
+					if (m_outputFile != null)
 					{
-						// save the initial MSE
-						initialMSE = mse;
+						m_outputFile.WriteLine(string.Format("{0}:{1}-{2}\t{3}", round, epoch, eCount, mse));
+						m_outputFile.Flush();
 					}
-					else if (!checkDone && (mse < initialMSE * 0.9))
-					{
-						checkDone = true;
-					}
-					eCount = 0;
 
-					// save the best for later
-					bestMSE = mse;
-					bestEpoch = epoch;
-					for (var layer = 1; layer < m_layers.Count; layer++)
-					{
-						foreach (var node in m_layers[layer])
-						{
-							node.SaveBestWeights();
-						}
-					}
-				}
-				else if (checkDone)
-				{
-					// check to see if we're done
-					eCount++;
-					if (eCount >= 20)
+					if ((mse == 0.0) || (epoch > 5000))
 					{
 						break;
+					}
+					else if ((epoch == 1) || (mse < bestMSE))
+					{
+						if (epoch == 1)
+						{
+							// save the initial MSE
+							initialMSE = mse;
+						}
+						else if (!checkDone && (mse < initialMSE * 0.9))
+						{
+							checkDone = true;
+						}
+						eCount = 0;
+
+						// save the best for later
+						bestMSE = mse;
+						bestEpoch = epoch;
+						for (var layer = 1; layer < m_layers.Count; layer++)
+						{
+							foreach (var node in m_layers[layer])
+							{
+								node.SaveBestWeights();
+							}
+						}
+					}
+					else if (checkDone)
+					{
+						// check to see if we're done
+						eCount++;
+						if (eCount >= 20)
+						{
+							break;
+						}
+					}
+
+					if ((bestEpoch > 0) && (bestEpoch != epoch))
+					{
+						for (var layer = round; layer < m_layers.Count; layer++)
+						{
+							foreach (var node in m_layers[layer])
+							{
+								node.RestoreBestWeights();
+								node.InitDeltas();
+							}
+						}
+						if (m_outputFile != null)
+						{
+							m_outputFile.WriteLine();
+							m_outputFile.WriteLine(string.Format("Best Weights (from Epoch {0}, valMSE={1})", bestEpoch, bestMSE));
+							PrintWeights();
+						}
 					}
 				}
 			}
@@ -384,32 +422,11 @@ namespace MLSystemManager
 				m_outputFile.WriteLine();
 				m_outputFile.WriteLine("Weights");
 				PrintWeights();
-			}
-
-			if ((bestEpoch > 0) && (bestEpoch != epoch))
-			{
-				for (var layer = 1; layer < m_layers.Count; layer++)
-				{
-					foreach (var node in m_layers[layer])
-					{
-						node.RestoreBestWeights();
-					}
-				}
-				if (m_outputFile != null)
-				{
-					m_outputFile.WriteLine();
-					m_outputFile.WriteLine(string.Format("Best Weights (from Epoch {0}, valMSE={1})", bestEpoch, bestMSE));
-					PrintWeights();
-				}
-			}
-
-			if (m_outputFile != null)
-			{
 				m_outputFile.Close();
 			}
 		}
 
-		private void TrainEpoch(int epoch, VMatrix features, VMatrix labels)
+		private void TrainEpoch(int epoch, VMatrix features, VMatrix labels, int currLayer)
 		{
 			object lo = new object();
 
@@ -427,7 +444,6 @@ namespace MLSystemManager
 				// calculate the output
 				for (var layer = 0; layer < m_layers.Count; layer++)
 				{
-					double outSum = 0;
 #if parallel
 					Parallel.ForEach(m_layers[layer], node =>
 #else
@@ -480,38 +496,20 @@ namespace MLSystemManager
 							}
 						}
 #if parallel
-						lock (lo)
-#endif
-						{
-							outSum += Math.Abs(node.output);
-						}
-#if parallel
 					});
 #else
 					}
 #endif
-					
-					// normalize the outputs for all layers except the output
-					if (m_normalizeOutputs && (layer < m_layers.Count - 1) && (outSum != 0))
-					{
-#if parallel
-					Parallel.ForEach(m_layers[layer], node =>
-#else
-					foreach (var node in m_layers[layer])
-#endif
-					{
-						node.output /= outSum;
-#if parallel
-					});
-#else
-					}
-#endif
-					}
 				}
 
+				double outAvgDelta = 0;
+				double currAvgDelta = 0;
+
 				// calculate the error and weight changes
-				for (var layer = m_layers.Count - 1; layer > 0; layer--)
+				for (var layer = m_layers.Count - 1; layer >= currLayer; layer--)
 				{
+					double avgDelta = 0;
+					int dCount = 0;
 #if parallel
 					Parallel.ForEach(m_layers[layer], node =>
 #else
@@ -575,21 +573,54 @@ namespace MLSystemManager
 							delta = m_rate * node.error * m_layers[layer - 1][w].output;
 							delta += m_momentum * node.deltas[w];
 							node.deltas[w] = delta;
-						}
+#if parallel
+                            lock (lo)
+#endif
+                            {
+                                avgDelta += Math.Abs(delta);
+                            }
+                        }
 
 						// calculate the bias weight change
 						delta = m_rate * node.error;
 						delta += m_momentum * node.deltas[node.weights.Length - 1];
 						node.deltas[node.weights.Length - 1] = delta;
 #if parallel
-					});
+                        lock (lo)
+#endif
+                        {
+                            avgDelta += Math.Abs(delta);
+                            dCount += node.weights.Length;
+                        }
+#if parallel
+                    });
 #else
 					}
 #endif
+					avgDelta /= dCount;
+					if (m_outputFile != null)
+					{
+						m_outputFile.WriteLine(string.Format("Layer {0} avg delta: {1}", layer, avgDelta));
+					}
+
+					if (layer == m_layers.Count - 1)
+					{
+						outAvgDelta = avgDelta;
+					}
+					if (layer == currLayer)
+					{
+						currAvgDelta = avgDelta;
+					}
+				}
+
+				double boost = outAvgDelta / currAvgDelta * m_boost;
+				if (m_outputFile != null)
+				{
+					m_outputFile.WriteLine(string.Format(string.Format("Boost: {0}", boost)));
 				}
 
 				// update the weights
-				for (var layer = 1; layer < m_layers.Count; layer++)
+				for (var layer = currLayer; layer == currLayer; layer++)
 				{
 #if parallel
 					Parallel.ForEach(m_layers[layer], node =>
@@ -599,7 +630,7 @@ namespace MLSystemManager
 					{
 						for (var w = 0; w < node.weights.Length; w++)
 						{
-							node.weights[w] += node.deltas[w];
+							node.weights[w] += node.deltas[w];// *boost;
 						}
 #if parallel
 					});
@@ -701,23 +732,6 @@ namespace MLSystemManager
 #else
 					}
 #endif
-
-					// normalize the outputs for all layers except the output
-					if (m_normalizeOutputs && (layer < m_layers.Count - 1) && (outSum != 0))
-					{
-#if parallel
-						Parallel.ForEach(m_layers[layer], node =>
-#else
-						foreach (var node in m_layers[layer])
-#endif
-						{
-							node.output /= outSum;
-#if parallel
-						});
-#else
-						}
-#endif
-					}
 				}
 
 				// calculate the error of the output layer
@@ -771,8 +785,6 @@ namespace MLSystemManager
 		{
 			for (var layer = 0; layer < m_layers.Count; layer++)
 			{
-				double outSum = 0;
-
 #if parallel
 				Parallel.ForEach(m_layers[layer], node =>
 #else
@@ -826,23 +838,6 @@ namespace MLSystemManager
 #else
 				}
 #endif
-
-				// normalize the outputs for all layers except the output
-				if (m_normalizeOutputs && (layer < m_layers.Count - 1) && (outSum != 0))
-				{
-#if parallel
-					Parallel.ForEach(m_layers[layer], node =>
-#else
-					foreach (var node in m_layers[layer])
-#endif
-					{
-						node.output /= outSum;
-#if parallel
-					});
-#else
-					}
-#endif
-				}
 			}
 
 			int labelIdx = 0;

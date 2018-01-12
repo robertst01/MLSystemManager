@@ -1,19 +1,24 @@
-﻿using System;
+﻿#define parallel
+
+using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Threading;
+using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 
-namespace MLSystemManager
+namespace MLSystemManager.Algorithms
 {
-	public class Dropout : SupervisedLearner
+	/// <summary>
+	/// Stacked Autoencoder
+	/// </summary>
+	class SAE : SupervisedLearner
 	{
 		private List<List<Node>> m_layers;
 		private Random m_rand;
 		private double m_rate = 0.1;
 		private double m_momentum = 0.9;
-		private double m_pi = 0.8;
-		private double m_ph = 0.5;
+		private double m_corruptLevel = 0.15;
 		private int[] m_hidden = null;
 		private List<double[]> m_weights = null;
 		private List<OutputLabel> m_outputLabels = null;
@@ -24,22 +29,22 @@ namespace MLSystemManager
 			public int index { get; set; }					// the index of this node
 			public double net { get; set; }					// the net for this node
 			public double output { get; set; }				// the output of this node
+			public double output2 { get; set; }				// the uncorrupted output of this node
 			public double error { get; set; }				// the error for this node
 			public double[] weights { get; set; }			// the weights for all nodes connected to this node
 			public double[] bestWeights { get; set; }		// the best weights so far
 			public double[] deltas { get; set; }			// weight deltas from previous epoch
-			public bool isActive { get; set; }				// true if this node is currently active
 
 			public Node()
 			{
 				index = 0;
 				net = 0;
 				output = 0;
+				output2 = 0;
 				error = 0;
 				weights = null;
 				bestWeights = null;
 				deltas = null;
-				isActive = true;
 			}
 
 			public Node(int numWeights, Random rand, double[] w)
@@ -67,8 +72,6 @@ namespace MLSystemManager
 						deltas[i] = 0;
 					}
 				}
-
-				this.isActive = true;
 			}
 
 			public void SaveBestWeights()
@@ -100,7 +103,8 @@ namespace MLSystemManager
 			public int valueCount { get; set; }
 			public double minValue { get; set; }
 			public double maxValue { get; set; }
-			public InputNode(int feature, int valueCount, double minValue, double maxValue, Random rand) : base(0, rand, null)
+			public InputNode(int feature, int valueCount, double minValue, double maxValue, Random rand)
+				: base(0, rand, null)
 			{
 				this.feature = feature;
 				this.valueCount = valueCount;
@@ -145,19 +149,18 @@ namespace MLSystemManager
 			}
 		}
 
-		public Dropout()
+		public SAE()
 		{
 			m_rand = new Random();
 			m_layers = new List<List<Node>>();
 		}
 
-		public Dropout(Random rand, double rate, double momentum, double ph, double pi, int[] hidden)
+		public SAE(Random rand, double rate, double momentum, double corruptLevel, int[] hidden)
 		{
 			m_rand = rand;
 			m_rate = rate;
 			m_momentum = momentum;
-			m_ph = ph;
-			m_pi = pi;
+			m_corruptLevel = corruptLevel;
 			m_hidden = hidden;
 			m_layers = new List<List<Node>>();
 		}
@@ -211,7 +214,7 @@ namespace MLSystemManager
 
 					int outputCount = int.Parse(nodeCounts[nodeCounts.Length - 1].Trim());
 					m_outputLabels = new List<OutputLabel>();
-					for (;;)
+					for (; ; )
 					{
 						// read the output node params
 						String line = file.ReadLine();
@@ -335,6 +338,8 @@ namespace MLSystemManager
 				m_hidden = new int[1] { features.Cols() * 2 };
 			}
 
+			int wIdx = 0;							// index into the weights array
+			
 			var weightsLoaded = LoadWeights();
 			if (!weightsLoaded)
 			{
@@ -346,70 +351,7 @@ namespace MLSystemManager
 				}
 
 				m_layers.Add(iNodes);
-
-				int prevNodes = iNodes.Count + 1;
-				int wIdx = 0;							// index into the weights array
-
-				// add the hidden nodes
-				for (var layer = 0; layer < m_hidden.Length; layer++)
-				{
-					// add the nodes for this layer
-					List<Node> hNodes = new List<Node>();
-
-					for (var n = 0; n < m_hidden[layer]; n++)
-					{
-						if (m_weights != null)
-						{
-							hNodes.Add(new HiddenNode(prevNodes, m_rand, m_weights[wIdx++]));
-						}
-						else
-						{
-							hNodes.Add(new HiddenNode(prevNodes, m_rand, null));
-						}
-					}
-
-					prevNodes = hNodes.Count + 1;
-					m_layers.Add(hNodes);
-				}
-
-				// add the output nodes - figure out how many outputs we need
-				List<Node> oNodes = new List<Node>();
-				for (var col = 0; col < labels.Cols(); col++)
-				{
-					var labelValueCount = labels.ValueCount(col);
-
-					if (labelValueCount < 2)
-					{
-						// continuous
-						if (m_weights != null)
-						{
-							oNodes.Add(new OutputNode(prevNodes, true, col, -1, m_rand, m_weights[wIdx++]));
-						}
-						else
-						{
-							oNodes.Add(new OutputNode(prevNodes, true, col, -1, m_rand, null));
-						}
-					}
-					else
-					{
-						for (var n = 0; n < labelValueCount; n++)
-						{
-							if (m_weights != null)
-							{
-								oNodes.Add(new OutputNode(prevNodes, false, col, n, m_rand, m_weights[wIdx++]));
-							}
-							else
-							{
-								oNodes.Add(new OutputNode(prevNodes, false, col, n, m_rand, null));
-							}
-						}
-					}
-				}
-
-				m_layers.Add(oNodes);
 			}
-
-			InitNodes();
 
 			if (!string.IsNullOrEmpty(OutputFileName))
 			{
@@ -422,136 +364,230 @@ namespace MLSystemManager
 			VMatrix validationFeatures = new VMatrix(features, trainSize, 0, features.Rows() - trainSize, features.Cols());
 			VMatrix validationLabels = new VMatrix(labels, trainSize, 0, labels.Rows() - trainSize, labels.Cols());
 
-			int epoch = 0;							// current epoch number
-			double bestTrainMSE = double.MaxValue;	// best training MSE so far
-			double bestMSE = double.MaxValue;		// best validation MSE so far
-			double bestAccuracy = double.MaxValue;	// best validationa accuracy so far
-			double initialMSE = double.MaxValue;	// MSE for first epoch
-			int eCount = 0;							// number of epochs since the best MSE
-			int bestEpoch = 0;						// epoch number of best MSE
-			bool done = false;
-			bool checkDone = false;					// if true, check to see if we're done
-
-			Console.WriteLine("Epoch\tMSE (training)\t\tMSE (validation)\taccuracy (validation)");
+			Console.WriteLine("R-E-C\tMSE (training)\t\tMSE (validation)\taccuracy (validation)");
 			if (m_outputFile != null)
 			{
-				m_outputFile.WriteLine(string.Format("{0} layers, {1} output nodes", m_layers.Count, m_layers[m_layers.Count - 1].Count));
 				m_outputFile.WriteLine("Momentum: " + m_momentum);
 				m_outputFile.WriteLine();
 				m_outputFile.WriteLine("Weights");
 				PrintWeights();
-				m_outputFile.WriteLine("Epoch\tMSE (training)\t\tMSE (validation)\taccuracy (validation)");
+				m_outputFile.WriteLine("R-E-C\tMSE (training)\t\tMSE (validation)\taccuracy (validation)");
 			}
 
-			do
+			if (m_weights != null)
 			{
-				// shuffle the training set
-				trainFeatures.Shuffle(m_rand, trainLabels);
-
-				double trainMSE;
-
-				if (m_weights != null)
-				{
-					// not training
-					trainMSE = VGetMSE(trainFeatures, trainLabels);
-					epoch++;
-				}
-				else
-				{
-					trainMSE = TrainEpoch(++epoch, trainFeatures, trainLabels);
-				}
-
-				// check the MSE after this epoch
+				// not training
+				double trainMSE = VGetMSE(trainFeatures, trainLabels);
 				double mse = VGetMSE(validationFeatures, validationLabels);
-
-				// check the validation accuracy after this epoch
 				double accuracy = VMeasureAccuracy(validationFeatures, validationLabels, null);
-
-				Console.WriteLine(string.Format("{0}\t{1}\t{2}\t{3}", epoch, trainMSE, mse, accuracy));
+				Console.WriteLine(string.Format("1\t{0}\t{1}\t{2}", trainMSE, mse, accuracy));
 				if (m_outputFile != null)
 				{
-					m_outputFile.WriteLine(string.Format("{0}\t{1}\t{2}\t{3}", epoch, trainMSE, mse, accuracy));
+					m_outputFile.WriteLine(string.Format("1\t{0}\t{1}\t{2}", trainMSE, mse, accuracy));
 				}
+			}
+			else
+			{
+				for (int round = 1; round <= m_hidden.Length + 1; round++)
+				{
+					if (round <= m_hidden.Length)
+					{
+						// add hidden nodes
+						int prevNodes = m_layers[m_layers.Count - 1].Count + 1;
+						List<Node> hNodes = new List<Node>();
 
-				if (m_weights != null)
-				{
-					// not really training
-					done = true;
-				}
-				else if (mse == 0.0)
-				{
-					// can't get better than this
-					done = true;
-				}
-				else if ((epoch == 1) || (mse <= bestMSE))
-				{
-					if (epoch == 1)
-					{
-						// save the initial MSE
-						initialMSE = mse;
-					}
-					else if (!checkDone && (mse < initialMSE * 0.9))
-					{
-						checkDone = true;
-					}
-
-					// save the best for later
-					bestTrainMSE = trainMSE;
-					bestMSE = mse;
-					bestAccuracy = accuracy;
-					bestEpoch = epoch;
-					eCount = 0;
-					for (var layer = 0; layer < m_layers.Count - 1; layer++)
-					{
-						foreach (var node in m_layers[layer])
+						for (var n = 0; n < m_hidden[m_layers.Count - 1]; n++)
 						{
-							node.SaveBestWeights();
+							if (m_weights != null)
+							{
+								hNodes.Add(new HiddenNode(prevNodes, m_rand, m_weights[wIdx++]));
+							}
+							else
+							{
+								hNodes.Add(new HiddenNode(prevNodes, m_rand, null));
+							}
+						}
+
+						m_layers.Add(hNodes);
+
+						prevNodes = hNodes.Count + 1;
+
+						// add output nodes
+						List<Node> oNodes = new List<Node>();
+
+						if (round < m_hidden.Length)
+						{
+							// dae layer - add output nodes to match inputs
+							for (var col = 0; col < m_layers[m_layers.Count - 2].Count; col++)
+							{
+								oNodes.Add(new OutputNode(prevNodes, true, col, -1, m_rand, null));
+							}
+						}
+						else
+						{
+							// final layer - figure out how many outputs we need
+							for (var col = 0; col < labels.Cols(); col++)
+							{
+								var labelValueCount = labels.ValueCount(col);
+
+								if (labelValueCount < 2)
+								{
+									// continuous
+									if (m_weights != null)
+									{
+										oNodes.Add(new OutputNode(prevNodes, true, col, -1, m_rand, m_weights[wIdx++]));
+									}
+									else
+									{
+										oNodes.Add(new OutputNode(prevNodes, true, col, -1, m_rand, null));
+									}
+								}
+								else
+								{
+									for (var n = 0; n < labelValueCount; n++)
+									{
+										if (m_weights != null)
+										{
+											oNodes.Add(new OutputNode(prevNodes, false, col, n, m_rand, m_weights[wIdx++]));
+										}
+										else
+										{
+											oNodes.Add(new OutputNode(prevNodes, false, col, n, m_rand, null));
+										}
+									}
+								}
+							}
+						}
+
+						m_layers.Add(oNodes);
+
+						InitNodes();
+					}
+
+					int epoch = 0;							// current epoch number
+					int bestEpoch = 0;						// epoch number of best MSE
+					int eCount = 0;							// number of epochs since the best MSE
+					bool checkDone = false;					// if true, check to see if we're done
+					double mse = 0;							// validation MSE
+					double bestTrainMSE = double.MaxValue;	// best training MSE so far
+					double bestMSE = double.MaxValue;		// best validation MSE so far
+					double accuracy = 0;					// validation accuracy
+					double bestAccuracy = double.MaxValue;	// best validationa accuracy so far
+
+					for (; ; )
+					{
+						// shuffle the training set
+						trainFeatures.Shuffle(m_rand, trainLabels);
+						double trainMSE = TrainEpoch(++epoch, trainFeatures, trainLabels, round < m_hidden.Length, round > m_hidden.Length);
+
+						// check the MSE after this epoch
+						if (round < m_hidden.Length)
+						{
+							mse = IGetMSE(validationFeatures);
+							accuracy = 0;
+						}
+						else
+						{
+							mse = VGetMSE(validationFeatures, validationLabels);
+
+							// check the validation accuracy
+							accuracy = VMeasureAccuracy(validationFeatures, validationLabels, null);
+						}
+
+						Console.WriteLine(string.Format("{0}-{1}-{2}\t{3}\t{4}\t{5}", round, epoch, eCount, trainMSE, mse, accuracy));
+						if (m_outputFile != null)
+						{
+							m_outputFile.WriteLine(string.Format("{0}-{1}-{2}\t{3}\t{4}\t{5}", round, epoch, eCount, trainMSE, mse, accuracy));
+							m_outputFile.Flush();
+						}
+
+						if ((mse == 0.0) || (epoch > 10000))
+						{
+							break;
+						}
+						else if ((epoch == 1) || (mse < bestMSE))
+						{
+							if (epoch == 1)
+							{
+								// save the initial MSE
+								bestMSE = mse;
+							}
+							else if ((mse / bestMSE) > 0.99)
+							{
+								if (!checkDone)
+								{
+									checkDone = true;
+									eCount = 0;
+								}
+							}
+							else
+							{
+								checkDone = false;
+								eCount = 0;
+							}
+
+							// save the best for later
+							bestTrainMSE = trainMSE;
+							bestMSE = mse;
+							bestAccuracy = accuracy;
+							bestEpoch = epoch;
+							for (var layer = 0; layer < m_layers.Count - 1; layer++)
+							{
+								foreach (var node in m_layers[layer])
+								{
+									node.SaveBestWeights();
+								}
+							}
+						}
+						else if (!checkDone)
+						{
+							checkDone = true;
+							eCount = 0;
+						}
+
+						if (checkDone)
+						{
+							// check to see if we're done
+							eCount++;
+							if (eCount >= 20)
+							{
+								break;
+							}
+						}
+					}
+
+					if (round < m_hidden.Length)
+					{
+						// delete the output layer
+						m_layers.RemoveAt(m_layers.Count - 1);
+					}
+
+					if ((bestEpoch > 0) && (bestEpoch != epoch))
+					{
+						for (var layer = 0; layer < m_layers.Count - 1; layer++)
+						{
+							foreach (var node in m_layers[layer])
+							{
+								node.RestoreBestWeights();
+							}
+						}
+
+						Console.WriteLine(string.Format("Best Weights (from Epoch {0}, trainMSE={1}, valMSE={2})", bestEpoch, bestTrainMSE, bestMSE));
+						if (m_outputFile != null)
+						{
+							m_outputFile.WriteLine();
+							m_outputFile.WriteLine(string.Format("Best Weights (from Epoch {0}, trainMSE={1}, valMSE={2})", bestEpoch, bestTrainMSE, bestMSE));
+							m_outputFile.Flush();
 						}
 					}
 				}
-				else if (checkDone)
-				{
-					// check to see if we're done
-					eCount++;
-					if (eCount >= 20)
-					{
-						done = true;
-					}
-				}
-				else if (mse > initialMSE * 1.1)
-				{
-					// are we getting really worse?
-					checkDone = true;
-				}
-				else if (epoch >= 10000)
-				{
-					// time to stop
-					done = true;
-				}
-			} while (!done);
+			}
 
 			if (m_outputFile != null)
 			{
 				m_outputFile.WriteLine();
 				m_outputFile.WriteLine("Weights");
 				PrintWeights();
-			}
-
-			if ((bestEpoch > 0) && (bestEpoch != epoch))
-			{
-				for (var layer = 0; layer < m_layers.Count - 1; layer++)
-				{
-					foreach (var node in m_layers[layer])
-					{
-						node.RestoreBestWeights();
-					}
-				}
-				if (m_outputFile != null)
-				{
-					m_outputFile.WriteLine();
-					m_outputFile.WriteLine(string.Format("Best Weights (from Epoch {0}, trainMSE={1}, valMSE={2}, valAcc={3})", bestEpoch, bestTrainMSE, bestMSE, bestAccuracy));
-					PrintWeights();
-				}
 			}
 
 			if (m_outputFile != null)
@@ -625,7 +661,7 @@ namespace MLSystemManager
 
 		private void InitNodes()
 		{
-			for (var layer = 0; layer < m_layers.Count - 1; layer++)
+			for (var layer = 0; layer < m_layers.Count; layer++)
 			{
 				for (int idx = 0; idx < m_layers[layer].Count; idx++)
 				{
@@ -634,27 +670,7 @@ namespace MLSystemManager
 			}
 		}
 
-		private void DropNodes(bool keepAll = false)
-		{
-			for (var layer = 0; layer < m_layers.Count - 1; layer++)
-			{
-				foreach (var node in m_layers[layer])
-				{
-					if (layer == 0)
-					{
-						// input layer
-						node.isActive = keepAll || (m_rand.NextDouble() <= m_pi);
-					}
-					else
-					{
-						// hidden layer
-						node.isActive = keepAll || (m_rand.NextDouble() <= m_ph);
-					}
-				}
-			}
-		}
-
-		private double TrainEpoch(int epoch, VMatrix features, VMatrix labels)
+		private double TrainEpoch(int epoch, VMatrix features, VMatrix labels, bool isDAE, bool trainAll)
 		{
 			double sse = 0;
 			object lo = new object();
@@ -662,144 +678,351 @@ namespace MLSystemManager
 			Console.Write("TrainEpoch ");
 			int cl = Console.CursorLeft;
 
+			StreamWriter aFile = null;
+			if (!isDAE && (epoch == 1))
+			{
+				aFile = File.CreateText("dbnTrain.arff");
+				aFile.WriteLine("@RELATION DAE");
+				aFile.WriteLine();
+				for (var i = 1; i <= m_layers[m_layers.Count - 3].Count; i++)
+				{
+					aFile.WriteLine(string.Format("@ATTRIBUTE hn{0}	real", i));
+				}
+				aFile.WriteLine("@ATTRIBUTE class	{0,1,2,3,4,5,6,7,8,9}");
+				aFile.WriteLine();
+				aFile.WriteLine("@DATA");
+			}
+
 			for (var row = 0; row < features.Rows(); row++)
 			{
-				Console.SetCursorPosition(cl, Console.CursorTop);
-				Console.Write(row);
-
-				DropNodes();
+				if (((row % 100) == 0) || (row == (features.Rows() - 1)))
+				{
+					Console.SetCursorPosition(cl, Console.CursorTop);
+					Console.Write(row);
+				}
 
 				// calculate the output
 				for (var layer = 0; layer < m_layers.Count; layer++)
 				{
+#if parallel
 					Parallel.ForEach(m_layers[layer], node =>
+#else
+					foreach (var node in m_layers[layer])
+#endif
 					{
 						node.net = 0;
 						node.output = 0;
+						node.output2 = 0;
 						node.error = 0;
 
-						if (node.isActive)
+						if (layer == 0)
 						{
-							if (layer == 0)
-							{
-								// input node
-								node.output = features.Get(row, node.index);
-							}
-							else
-							{
-								// calculate the net value
-								for (var w = 0; w < node.weights.Length - 1; w++)
-								{
-									var nNode = m_layers[layer - 1][w];
-									if (nNode.isActive)
-									{
-										node.net += node.weights[w] * nNode.output;
-									}
-								}
-								// add the bias
-								node.net += node.weights[node.weights.Length - 1];
-
-								// calculate the output
-								node.output = 1.0 / (1.0 + Math.Exp(-node.net));
-							}
+							// input node
+							node.output = features.Get(row, node.index);
+							node.output2 = node.output;
 						}
+						else
+						{
+							// calculate the net value
+							for (var w = 0; w < node.weights.Length - 1; w++)
+							{
+								node.net += node.weights[w] * m_layers[layer - 1][w].output;
+							}
+							// add the bias
+							node.net += node.weights[node.weights.Length - 1];
+
+							// calculate the output
+							node.output = Activation(node.net);
+							node.output2 = node.output;
+						}
+
+						if (isDAE && (layer == m_layers.Count - 3) && (node.output != 0))
+							lock (lo)
+							{
+								// corrupt the output
+								if (m_rand.NextDouble() < m_corruptLevel)
+								{
+									node.output = 0;
+								}
+							}
+#if parallel
 					});
+#else
+					}
+#endif
+				}
+
+				if (!isDAE && (epoch == 1) && (aFile != null))
+				{
+					StringBuilder asb = new StringBuilder();
+					foreach (var node in m_layers[m_layers.Count - 3])
+					{
+						asb.Append(node.output);
+						asb.Append(',');
+					}
+
+					OutputNode oNode = m_layers[m_layers.Count - 1][0] as OutputNode;
+					double ov = labels.Get(row, oNode.labelCol);
+					string on = labels.AttrValue(oNode.labelCol, (int)ov);
+					asb.Append(on);
+
+					aFile.WriteLine(asb.ToString());
 				}
 
 				// calculate the error and weight changes
-				for (var layer = m_layers.Count - 1; layer > 0; layer--)
+				int minLayer = (trainAll ? 0 : m_layers.Count - 3);
+				for (var layer = m_layers.Count - 1; layer > minLayer; layer--)
 				{
+#if parallel
 					Parallel.ForEach(m_layers[layer], node =>
+#else
+					foreach (var node in m_layers[layer])
+#endif
 					{
-						if (node.isActive)
+						double fPrime = FPrime(node.output);
+						if (layer == m_layers.Count - 1)
 						{
-							double fPrime = node.output * (1.0 - node.output);
-							if (layer == m_layers.Count - 1)
+							// output layer
+							OutputNode oNode = node as OutputNode;
+							double target;
+							if (isDAE)
 							{
-								// output layer
-								OutputNode oNode = node as OutputNode;
-								double target = labels.Get(row, oNode.labelCol);
-								if (!oNode.isContinuous)
-								{
-									// nominal
-									if (target == oNode.labelVal)
-									{
-										target = 0.9;
-									}
-									else
-									{
-										target = 0.1;
-									}
-								}
-
-								var error = target - node.output;
-								node.error = error * fPrime;
-								lock (lo) { sse += error * error; }
+								target = m_layers[m_layers.Count - 3][oNode.index].output2;
 							}
 							else
 							{
-								// hidden layer
-								double sum = 0;
-								foreach (var tn in m_layers[layer + 1])
-								{
-									if (tn.isActive)
-									{
-										sum += tn.error * tn.weights[node.index];
-									}
-								}
-								node.error = sum * fPrime;
+								target = labels.Get(row, oNode.labelCol);
 							}
 
-							// calculate the weight changes
-							double delta;
-							for (var w = 0; w < node.weights.Length - 1; w++)
+							if (!oNode.isContinuous)
 							{
-								if (node.isActive)
+								// nominal
+								if (target == oNode.labelVal)
 								{
-									var dNode = m_layers[layer - 1][w];
-									if (dNode.isActive)
-									{
-										delta = m_rate * node.error * dNode.output;
-										delta += m_momentum * node.deltas[w];
-										node.deltas[w] = delta;
-									}
+									target = 0.9;
+								}
+								else
+								{
+									target = 0.1;
 								}
 							}
 
-							// calculate the bias weight change
-							delta = m_rate * node.error;
-							delta += m_momentum * node.deltas[node.weights.Length - 1];
-							node.deltas[node.weights.Length - 1] = delta;
+							var error = target - node.output;
+							node.error = error * fPrime;
+							lock (lo) { sse += error * error; }
 						}
+						else
+						{
+							// hidden layer
+							double sum = 0;
+							foreach (var tn in m_layers[layer + 1])
+							{
+								sum += tn.error * tn.weights[node.index];
+							}
+							node.error = sum * fPrime;
+						}
+
+						// calculate the weight changes
+						double delta;
+						for (var w = 0; w < node.weights.Length - 1; w++)
+						{
+							delta = m_rate * node.error * m_layers[layer - 1][w].output;
+							delta += m_momentum * node.deltas[w];
+							node.deltas[w] = delta;
+						}
+
+						// calculate the bias weight change
+						delta = m_rate * node.error;
+						delta += m_momentum * node.deltas[node.weights.Length - 1];
+						node.deltas[node.weights.Length - 1] = delta;
+#if parallel
 					});
+#else
+					}
+#endif
 				}
 
 				// update the weights
-				for (var layer = 1; layer < m_layers.Count; layer++)
+				minLayer = (trainAll ? 1 : m_layers.Count - 2);
+				for (var layer = minLayer; layer < m_layers.Count; layer++)
 				{
+#if parallel
 					Parallel.ForEach(m_layers[layer], node =>
+#else
+					foreach (var node in m_layers[layer])
+#endif
 					{
-						if (node.isActive)
+						for (var w = 0; w < node.weights.Length; w++)
 						{
-							for (var w = 0; w < node.weights.Length - 1; w++)
-							{
-								var wNode = m_layers[layer - 1][w];
-								if (wNode.isActive)
-								{
-									node.weights[w] += node.deltas[w];
-								}
-
-								// update the bias weight
-								node.weights[node.weights.Length - 1] += node.deltas[node.weights.Length - 1];
-							}
+							node.weights[w] += node.deltas[w];
 						}
+#if parallel
 					});
+#else
+					}
+#endif
 				}
+
+				//if (isDAE && (m_outputFile != null))
+				//{
+				//	m_outputFile.WriteLine(string.Format("TrainEpoch {0} {1}", epoch, row));
+				//	StringBuilder sb = new StringBuilder();
+				//	foreach (var node in m_layers[m_layers.Count - 3])
+				//	{
+				//		if (sb.Length > 0)
+				//		{
+				//			sb.Append(',');
+				//		}
+				//		sb.Append(node.output2);
+				//	}
+				//	m_outputFile.WriteLine(sb.ToString());
+
+				//	sb.Clear();
+				//	foreach (var node in m_layers[m_layers.Count - 1])
+				//	{
+				//		if (sb.Length > 0)
+				//		{
+				//			sb.Append(',');
+				//		}
+				//		sb.Append(node.output);
+				//	}
+				//	m_outputFile.WriteLine(sb.ToString());
+				//	m_outputFile.WriteLine();
+				//	m_outputFile.Flush();
+				//}
 			}
 
 			Console.WriteLine();
 
-			return sse / features.Rows();
+			if (!isDAE && (epoch == 1) && (aFile != null))
+			{
+				aFile.Close();
+			}
+
+			if (isDAE)
+			{
+				sse /= m_layers[m_layers.Count - 1].Count;
+			}
+			sse /= features.Rows();
+
+			return sse;
+		}
+
+		private double Activation(double net)
+		{
+			return (net < 0 ? 0.01 * net : net);
+			// return 1.0 / (1.0 + Math.Exp(-node.net));
+		}
+
+		private double FPrime(double net)
+		{
+			return (net < 0 ? 0.01 : 1.0);
+			//return net * (1.0 - net);
+		}
+
+		private double IGetMSE(VMatrix features)
+		{
+			double sse = 0;
+			object lo = new object();
+
+			Console.Write("IGetMSE ");
+			int cl = Console.CursorLeft;
+
+			for (var row = 0; row < features.Rows(); row++)
+			{
+				if (((row % 10) == 0) || (row == (features.Rows() - 1)))
+				{
+					Console.SetCursorPosition(cl, Console.CursorTop);
+					Console.Write(row);
+				}
+
+				// calculate the output
+				for (var layer = 0; layer < m_layers.Count; layer++)
+				{
+#if parallel
+					Parallel.ForEach(m_layers[layer], node =>
+#else
+					foreach (var node in m_layers[layer])
+#endif
+					{
+						node.net = 0;
+
+						if (layer == 0)
+						{
+							// input node
+							node.output = features.Get(row, node.index);
+						}
+						else
+						{
+							// calculate the net value
+							for (var w = 0; w < node.weights.Length - 1; w++)
+							{
+								node.net += node.weights[w] * m_layers[layer - 1][w].output;
+							}
+							// add the bias
+							node.net += node.weights[node.weights.Length - 1];
+
+							node.output = Activation(node.net);
+						}
+#if parallel
+					});
+#else
+					}
+#endif
+				}
+
+				// calculate the error of the output layer
+#if parallel
+				Parallel.ForEach(m_layers[m_layers.Count - 1], node =>
+#else
+				foreach (var node in m_layers[m_layers.Count - 1])
+#endif
+				{
+					var error = m_layers[m_layers.Count - 3][node.index].output - node.output;
+
+					// update the error
+					lock (lo) { sse += error * error; }
+#if parallel
+				});
+#else
+				}
+#endif
+
+				//if (m_outputFile != null)
+				//{
+				//	m_outputFile.WriteLine("IGetMSE");
+				//	StringBuilder sb = new StringBuilder();
+				//	foreach (var node in m_layers[m_layers.Count - 3])
+				//	{
+				//		if (sb.Length > 0)
+				//		{
+				//			sb.Append(',');
+				//		}
+				//		sb.Append(node.output);
+				//	}
+				//	m_outputFile.WriteLine(sb.ToString());
+
+				//	sb.Clear();
+				//	foreach (var node in m_layers[m_layers.Count - 1])
+				//	{
+				//		if (sb.Length > 0)
+				//		{
+				//			sb.Append(',');
+				//		}
+				//		sb.Append(node.output);
+				//	}
+				//	m_outputFile.WriteLine(sb.ToString());
+				//	m_outputFile.WriteLine();
+				//	m_outputFile.Flush();
+				//}
+			}
+
+			sse /= m_layers[m_layers.Count - 1].Count;
+			sse /= features.Rows();
+
+			Console.WriteLine();
+
+			return sse;
 		}
 
 		// Calculate the MSE
@@ -812,14 +1035,18 @@ namespace MLSystemManager
 		public override double VGetMSE(VMatrix features, VMatrix labels)
 		{
 			double sse = 0;
+			object lo = new object();
 
 			Console.Write("VGetMSE ");
 			int cl = Console.CursorLeft;
 
 			for (var row = 0; row < features.Rows(); row++)
 			{
-				Console.SetCursorPosition(cl, Console.CursorTop);
-				Console.Write(row);
+				if (((row % 10) == 0) || (row == (features.Rows() - 1)))
+				{
+					Console.SetCursorPosition(cl, Console.CursorTop);
+					Console.Write(row);
+				}
 
 				// calculate the output
 				for (var layer = 0; layer < m_layers.Count; layer++)
@@ -839,21 +1066,12 @@ namespace MLSystemManager
 							// calculate the net value
 							for (var w = 0; w < node.weights.Length - 1; w++)
 							{
-								double weight = node.weights[w];
-								if (layer == 1)
-								{
-									weight *= m_pi;
-								}
-								else
-								{
-									weight *= m_ph;
-								}
-								node.net += weight * m_layers[layer - 1][w].output;
+								node.net += node.weights[w] * m_layers[layer - 1][w].output;
 							}
 							// add the bias
 							node.net += node.weights[node.weights.Length - 1];
 
-							node.output = 1.0 / (1.0 + Math.Exp(-node.net));
+							node.output = Activation(node.net);
 						}
 					});
 				}
@@ -863,6 +1081,7 @@ namespace MLSystemManager
 				{
 					OutputNode node = m_layers[m_layers.Count - 1][n] as OutputNode;
 					double target = labels.Get(row, node.labelCol);
+
 					if (!node.isContinuous)
 					{
 						// nominal
@@ -902,16 +1121,18 @@ namespace MLSystemManager
 				}
 			}
 			m_outputFile.WriteLine();
+			m_outputFile.Flush();
 		}
 
 		public override void Predict(double[] features, double[] labels)
 		{
+			object lo = new object();
+
 			for (var layer = 0; layer < m_layers.Count; layer++)
 			{
 				Parallel.ForEach(m_layers[layer], node =>
 				{
 					node.net = 0;
-					node.output = 0;
 
 					if (layer == 0)
 					{
@@ -923,21 +1144,12 @@ namespace MLSystemManager
 						// calculate the net value
 						for (var w = 0; w < node.weights.Length - 1; w++)
 						{
-							double weight = node.weights[w];
-							if (layer == 1)
-							{
-								weight *= m_pi;
-							}
-							else
-							{
-								weight *= m_ph;
-							}
-							node.net += weight * m_layers[layer - 1][w].output;
+							node.net += node.weights[w] * m_layers[layer - 1][w].output;
 						}
 						// add the bias
 						node.net += node.weights[node.weights.Length - 1];
 
-						node.output = 1.0 / (1.0 + Math.Exp(-node.net));
+						node.output = Activation(node.net);
 					}
 				});
 			}

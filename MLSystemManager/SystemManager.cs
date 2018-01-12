@@ -4,12 +4,12 @@
 // ----------------------------------------------------------------
 
 using System;
-using System.Collections.Generic;
 using System.IO;
+using MLSystemManager.Algorithms;
 
 namespace MLSystemManager
 {
-	public class SystemManager
+    public class SystemManager
 	{
 		/**
 			*  When you make a new learning algorithm, you should add a line for it to this method.

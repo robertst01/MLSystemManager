@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 
-namespace MLSystemManager
+namespace MLSystemManager.Algorithms
 {
 	public class Perceptron : SupervisedLearner
 	{

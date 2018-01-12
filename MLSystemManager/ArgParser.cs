@@ -1,103 +1,81 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Runtime.Serialization.Json;
+using System.Text;
 
 namespace MLSystemManager
 {
 	class ArgParser
 	{
-		string arff;
-		string learner;
-		string learnExtra;
-		string evaluation;
-		string evalExtra;
-		string rate = "0.1";
-		string momentum = "0.9";
-		string ph = "0.5";
-		string pi = "0.8";
-		string outputs = "1";
-		List<int> hidden = new List<int>();
-		string outputFileName = string.Empty;
-		string weightsFileName = string.Empty;
-		bool verbose = false;
-		bool normalize = false;
-		bool normalizeOutputs = false;
-		bool prune = false;
-		bool distance = false;
-		string k = "1";
-		string ignore = string.Empty;
-		bool sample = false;
-		string corruptLevel = "0";
-		string gridSize = "1";
-		string iterations = "10000";
-		string activation = "sigmoid";
-		string actParameter = "0,0,1";
-		bool trainAll = false;
-		string boost = "1.0";
+	    private Parameters _parameters;
 
 		//You can add more options for specific learning models if you wish
 		public ArgParser(string[] argv)
 		{
 			try
 			{
+                _parameters = new Parameters();
+
 				for (int i = 0; i < argv.Length; i++)
 				{
-					if (argv[i].Equals("-A"))
+					if (argv[i] == "-A")
 					{
-						arff = argv[++i];
+						_parameters.Arff = argv[++i];
 					}
-					else if (argv[i].Equals("-B"))
+					else if (argv[i] == "-B")
 					{
-						boost = argv[++i];
+						_parameters.Boost = double.Parse(argv[++i]);
 					}
-					else if (argv[i].Equals("-AF"))
+					else if (argv[i] == "-AF")
 					{
-						activation = argv[++i];
-						if (argv[i].Equals("relu") || argv[i].Equals("vrelu"))
+						_parameters.Activation = argv[++i];
+						if ((argv[i] == "relu") || (argv[i] == "vrelu"))
 						{
 							//expecting ReLU leak level or threshold
-							actParameter = argv[++i];
+							_parameters.ActParameter = argv[++i];
 						}
 					}
-					else if (argv[i].Equals("-C"))
+					else if (argv[i] == "-C")
 					{
-						corruptLevel = argv[++i];
+						_parameters.CorruptLevel = double.Parse(argv[++i]);
 					}
-					else if (argv[i].Equals("-D"))
+					else if (argv[i] == "-D")
 					{
-						distance = true;
+						_parameters.Distance = true;
 					}
-					else if (argv[i].Equals("-E"))
+					else if (argv[i] == "-E")
 					{
-						evaluation = argv[++i];
-						if (argv[i].Equals("static"))
+						_parameters.Evaluation = argv[++i];
+						if (argv[i] == "static")
 						{
-							//expecting a test set name
-							evalExtra = argv[++i];
+                            //expecting a test set name
+						    _parameters.EvalExtra = argv[++i];
 						}
-						else if (argv[i].Equals("random"))
+						else if (argv[i] == "random")
 						{
-							//expecting a double representing the percentage for testing
-							//Note stratification is NOT done
-							evalExtra = argv[++i];
+                            //expecting a double representing the percentage for testing
+                            //Note stratification is NOT done
+						    _parameters.EvalExtra = argv[++i];
 						}
-						else if (argv[i].Equals("cross"))
+						else if (argv[i] == "cross")
 						{
-							//expecting the number of folds
-							evalExtra = argv[++i];
+                            //expecting the number of folds
+						    _parameters.EvalExtra = argv[++i];
 						}
-						else if (!argv[i].Equals("training"))
+						else if (argv[i] != "training")
 						{
 							Console.WriteLine("Invalid Evaluation Method: " + argv[i]);
 							Environment.Exit(0);
 						}
 					}
-					else if (argv[i].Equals("-F"))
+					else if (argv[i] == "-F")
 					{
-						outputFileName = argv[++i];
+					    _parameters.OutputFileName = argv[++i];
 					}
-					else if (argv[i].Equals("-G"))
+					else if (argv[i] == "-G")
 					{
-						gridSize = argv[++i];
+					    _parameters.GridSize = int.Parse(argv[++i]);
 					}
 					else if (argv[i].StartsWith("-H"))
 					{
@@ -108,7 +86,7 @@ namespace MLSystemManager
 							Console.WriteLine("Invalid Hidden Layer: " + hlNumStr);
 							Environment.Exit(0);
 						}
-						if (hlNum > hidden.Count + 1)
+						if (hlNum > _parameters.Hidden.Count + 1)
 						{
 							Console.WriteLine("Hidden Layers must be sequential (-H1, -H2, etc.): " + hlNumStr);
 							Environment.Exit(0);
@@ -121,76 +99,76 @@ namespace MLSystemManager
 							Environment.Exit(0);
 						}
 
-						hidden.Add(hlCount);
+					    _parameters.Hidden.Add(hlCount);
 					}
-					else if (argv[i].Equals("-I"))
+					else if (argv[i] == "-I")
 					{
-						ignore = argv[++i];
+					    _parameters.Ignore = argv[++i];
 					}
-					else if (argv[i].Equals("-IT"))
+					else if (argv[i] == "-IT")
 					{
-						iterations = argv[++i];
+					    _parameters.Iterations = int.Parse(argv[++i]);
 					}
-					else if (argv[i].Equals("-K"))
+					else if (argv[i] == "-K")
 					{
-						k = argv[++i];
+					    _parameters.K = int.Parse(argv[++i]);
 					}
-					else if (argv[i].Equals("-L"))
+					else if (argv[i] == "-L")
 					{
-						learner = argv[++i];
-						if (learner.Equals("clustering"))
+					    _parameters.Learner = argv[++i];
+						if (_parameters.Learner == "clustering")
 						{
-							//expecting the type (k, single, complete)
-							learnExtra = argv[++i];
+                            //expecting the type (k, single, complete)
+						    _parameters.LearnExtra = argv[++i];
 						}
 					}
-					else if (argv[i].Equals("-M"))
+					else if (argv[i] == "-M")
 					{
-						momentum = argv[++i];
+					    _parameters.Momentum = double.Parse(argv[++i]);
 					}
-					else if (argv[i].Equals("-N"))
+					else if (argv[i] == "-N")
 					{
-						normalize = true;
+					    _parameters.Normalize = true;
 					}
-					else if (argv[i].Equals("-NO"))
+					else if (argv[i] == "-NO")
 					{
-						normalizeOutputs = true;
+					    _parameters.NormalizeOutputs = true;
 					}
-					else if (argv[i].Equals("-O"))
+					else if (argv[i] == "-O")
 					{
-						outputs = argv[++i];
+					    _parameters.Outputs = int.Parse(argv[++i]);
 					}
-					else if (argv[i].Equals("-P"))
+					else if (argv[i] == "-P")
 					{
-						prune = true;
+					    _parameters.Prune = true;
 					}
-					else if (argv[i].Equals("-PH"))
+					else if (argv[i] == "-PH")
 					{
-						ph = argv[++i];
+					    _parameters.Ph = double.Parse(argv[++i]);
 					}
-					else if (argv[i].Equals("-PI"))
+					else if (argv[i] == "-PI")
 					{
-						pi = argv[++i];
+					    _parameters.Pi = double.Parse(argv[++i]);
 					}
-					else if (argv[i].Equals("-R"))
+					else if (argv[i] == "-R")
 					{
-						rate = argv[++i];
+					    _parameters.Rate = double.Parse(argv[++i]);
 					}
-					else if (argv[i].Equals("-S"))
+					else if (argv[i] == "-S")
 					{
-						sample = true;
+					    _parameters.Sample = true;
 					}
-					else if (argv[i].Equals("-TA"))
+					else if (argv[i] == "-TA")
 					{
-						trainAll = true;
+					    _parameters.TrainAll = true;
 					}
-					else if (argv[i].Equals("-V"))
+					else if (argv[i] == "-V")
 					{
-						verbose = true;
+					    _parameters.Verbose = true;
 					}
-					else if (argv[i].Equals("-W"))
+					else if (argv[i] == "-W")
 					{
-						weightsFileName = argv[++i];
+					    _parameters.WeightsFileName = argv[++i];
 					}
 					else
 					{
@@ -216,7 +194,7 @@ namespace MLSystemManager
 				Environment.Exit(0);
 			}
 
-			if (arff == null || learner == null || evaluation == null)
+			if (_parameters.Arff == null || _parameters.Learner == null || _parameters.Evaluation == null)
 			{
 				Console.WriteLine("Usage:");
 				Console.WriteLine("MLSystemManager -L [learningAlgorithm] -A [ARFF_File] -E [evaluationMethod] {[extraParamters]} [OPTIONS]\n");
@@ -231,36 +209,49 @@ namespace MLSystemManager
 				Console.WriteLine("MLSystemManager -L [learningAlgorithm] -A [ARFF_File] -E cross [numOfFolds]\n");
 				Environment.Exit(0);
 			}
-		}
 
-		//The getter methods
-		public string GetARFF() { return arff; }
-		public string GetLearner() { return learner; }
-		public string GetLearnParameter() { return learnExtra; }
-		public string GetEvaluation() { return evaluation; }
-		public string GetEvalParameter() { return evalExtra; }
-		public double GetRate() { return double.Parse(rate); }
-		public double GetMomentum() { return double.Parse(momentum); }
-		public double GetPH() { return double.Parse(ph); }
-		public double GetPI() { return double.Parse(pi); }
-		public int[] GetHidden() { return hidden.ToArray(); }
-		public int GetOutputs() { return int.Parse(outputs); }
-		public string GetOutputFileName() { return outputFileName; }
-		public string GetWeightsFileName() { return weightsFileName; }
-		public bool GetVerbose() { return verbose; }
-		public bool GetNormalize() { return normalize; }
-		public bool GetNormalizeOutputs() { return normalizeOutputs; }
-		public bool GetPrune() { return prune; }
-		public bool GetDistance() { return distance; }
-		public int GetK() { return int.Parse(k); }
-		public string GetIgnore() { return ignore; }
-		public bool GetSample() { return sample; }
-		public double GetCorruptLevel() { return double.Parse(corruptLevel); }
-		public int GetGridSize() { return int.Parse(gridSize); }
-		public int GetIterations() { return int.Parse(iterations); }
-		public string GetActivation() { return activation; }
-		public string GetActParameter() { return actParameter; }
-		public bool GetTrainAll() { return trainAll; }
-		public double GetBoost() { return double.Parse(boost); }
+            //Create a stream to serialize the object to.  
+		    var ms = new MemoryStream();
+
+		    // Serializer the User object to the stream.  
+		    var ser = new DataContractJsonSerializer(typeof(Parameters));
+		    ser.WriteObject(ms, _parameters);
+		    byte[] json = ms.ToArray();
+		    ms.Close();
+
+            var w = new StreamWriter("Parameters.txt");
+		    w.Write(Encoding.UTF8.GetString(json, 0, json.Length));
+            w.Close();
+        }
+
+        //The getter methods
+        public string GetARFF() { return _parameters.Arff; }
+		public string GetLearner() { return _parameters.Learner; }
+		public string GetLearnParameter() { return _parameters.LearnExtra; }
+		public string GetEvaluation() { return _parameters.Evaluation; }
+		public string GetEvalParameter() { return _parameters.EvalExtra; }
+		public double GetRate() { return _parameters.Rate; }
+		public double GetMomentum() { return _parameters.Momentum; }
+		public double GetPH() { return _parameters.Ph; }
+		public double GetPI() { return _parameters.Pi; }
+		public int[] GetHidden() { return _parameters.Hidden.ToArray(); }
+		public int GetOutputs() { return _parameters.Outputs; }
+		public string GetOutputFileName() { return _parameters.OutputFileName; }
+		public string GetWeightsFileName() { return _parameters.WeightsFileName; }
+		public bool GetVerbose() { return _parameters.Verbose; }
+		public bool GetNormalize() { return _parameters.Normalize; }
+		public bool GetNormalizeOutputs() { return _parameters.NormalizeOutputs; }
+		public bool GetPrune() { return _parameters.Prune; }
+		public bool GetDistance() { return _parameters.Distance; }
+		public int GetK() { return _parameters.K; }
+		public string GetIgnore() { return _parameters.Ignore; }
+		public bool GetSample() { return _parameters.Sample; }
+		public double GetCorruptLevel() { return _parameters.CorruptLevel; }
+		public int GetGridSize() { return _parameters.GridSize; }
+		public int GetIterations() { return _parameters.Iterations; }
+		public string GetActivation() { return _parameters.Activation; }
+		public string GetActParameter() { return _parameters.ActParameter; }
+		public bool GetTrainAll() { return _parameters.TrainAll; }
+		public double GetBoost() { return _parameters.Boost; }
 	}
 }
