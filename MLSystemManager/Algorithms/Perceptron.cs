@@ -17,10 +17,10 @@ namespace MLSystemManager.Algorithms
 			m_rand = new Random();
 		}
 
-		public Perceptron(Random rand, double rate)
+		public Perceptron(Parameters parameters)
 		{
-			m_rand = rand;
-			m_rate = rate;
+			m_rand = Rand.Get();
+			m_rate = parameters.Rate;
 		}
 
 		public override void Train(Matrix features, Matrix labels, double[] colMin, double[] colMax)

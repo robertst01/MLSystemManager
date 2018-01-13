@@ -138,14 +138,14 @@ namespace MLSystemManager.Algorithms
 			m_layers = new List<List<Node>>();
 		}
 
-		public SMLP(Random rand, double rate, double momentum, double corruptLevel, string activation, string actParameter, bool trainAll, int[] hidden)
+		public SMLP(Parameters parameters)
 		{
-			m_rand = rand;
-			m_rate = rate;
-			m_momentum = momentum;
-			m_corruptLevel = corruptLevel;
-			m_activation = activation;
-			var sa = actParameter.Split(',');
+			m_rand = Rand.Get();
+			m_rate = parameters.Rate;
+			m_momentum = parameters.Momentum;
+			m_corruptLevel = parameters.CorruptLevel;
+			m_activation = parameters.Activation;
+			var sa = parameters.ActParameter.Split(',');
 			if (sa.Length > 0)
 			{
 				m_actLeak = double.Parse(sa[0]);
@@ -163,8 +163,8 @@ namespace MLSystemManager.Algorithms
 				m_actRandom = (sa[3].ToLower() == "r");
 			}
 
-			m_trainAll = trainAll;
-			m_hidden = hidden;
+			m_trainAll = parameters.TrainAll;
+			m_hidden = parameters.Hidden;
 			m_layers = new List<List<Node>>();
 		}
 

@@ -148,14 +148,14 @@ namespace MLSystemManager.Algorithms
 			m_layers = new List<List<Node>>();
 		}
 
-		public BPTT(Random rand, double rate, double momentum, int k, int hidden)
+		public BPTT(Parameters parameters)
 		{
-			m_rand = rand;
-			m_rate = rate;
-			m_momentum = momentum;
-			m_k = k;
+			m_rand = Rand.Get();
+			m_rate = parameters.Rate;
+			m_momentum = parameters.Momentum;
+			m_k = parameters.K;
 			m_inputs = 0;
-			m_hidden = hidden;
+			m_hidden = parameters.Hidden[0];
 			m_layers = new List<List<Node>>();
 		}
 

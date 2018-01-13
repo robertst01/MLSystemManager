@@ -11,88 +11,50 @@ namespace MLSystemManager
 {
     public class SystemManager
 	{
-		/**
-			*  When you make a new learning algorithm, you should add a line for it to this method.
-			*/
-		public SupervisedLearner GetLearner(string model, string learnParameter, Random rand, double rate, double momentum,
-			double ph, double pi, int[] hidden, bool prune, bool distance, int k, string ignore, bool sample, double corruptLevel,
-			int gridSize, int iterations, string activation, string actParameter, bool trainAll, bool normalizeOutputs, double boost)
+		public SupervisedLearner GetLearner(Parameters parameters, Random rand)
 		{
-			if (model.Equals("baseline"))
+			switch (parameters.Learner)
 			{
-				return new BaselineLearner();
-			}
-			else if (model.Equals("perceptron"))
-			{
-				return new Perceptron(rand, rate);
-			}
-			else if (model.Equals("neuralnet"))
-			{
-				return new NeuralNet(rand, rate, momentum, activation, actParameter, hidden, normalizeOutputs);
-			}
-			else if (model.Equals("decisiontree"))
-			{
-				return new DecisionTree(prune);
-			}
-			else if (model.Equals("knn"))
-			{
-				return new InstanceBasedLearner(distance, k, prune);
-			}
-			else if (model.Equals("clustering"))
-			{
-				return new Clustering(learnParameter, k, rand, ignore);
-			}
-			else if (model.Equals("dropout"))
-			{
-				return new Dropout(rand, rate, momentum, ph, pi, hidden);
-			}
-			else if (model.Equals("bptt"))
-			{
-				if ((hidden != null) && (hidden.Length > 1))
-				{
-					throw new Exception("Only one hidden layer is supported");
-				}
-				return new BPTT(rand, rate, momentum, k, hidden[0]);
-			}
-			else if (model.Equals("dbn"))
-			{
-				return new DBN(rand, rate, momentum, ph, pi, sample, hidden);
-			}
-			else if (model.Equals("sae"))
-			{
-				return new SAE(rand, rate, momentum, corruptLevel, hidden);
-			}
-			else if (model.Equals("relu"))
-			{
-				return new ReLU(rand, rate, momentum, hidden);
-			}
-			else if (model.Equals("som"))
-			{
-				return new SOM(rand, rate, iterations, gridSize);
-			}
-			else if (model.Equals("smlp"))
-			{
-				return new SMLP(rand, rate, momentum, corruptLevel, activation, actParameter, trainAll, hidden);
-			}
-			else if (model.Equals("amlp"))
-			{
-				return new AMLP(rand, rate, momentum, activation, actParameter, hidden);
-			}
-			else if (model.Equals("dmlp"))
-			{
-				return new DMLP(rand, rate, momentum, activation, actParameter, hidden);
-			}
-			else if (model.Equals("rnn"))
-			{
-				return new RNN(rand, rate, momentum, activation, actParameter, hidden, boost);
-			}
-			else if (model.Equals("nnrev"))
-			{
-				return new NNRev(rand, rate, momentum, activation, actParameter, hidden);
-			}
-			else
-			{
-				throw new Exception("Unrecognized model: " + model);
+				case "baseline":
+					return new BaselineLearner();
+				case "perceptron":
+					return new Perceptron(parameters);
+				case "neuralnet":
+					return new NeuralNet(parameters);
+				case "decisiontree":
+					return new DecisionTree(parameters);
+				case "knn":
+					return new InstanceBasedLearner(parameters);
+				case "clustering":
+					return new Clustering(parameters);
+				case "dropout":
+					return new Dropout(parameters);
+				case "bptt":
+					if ((parameters.Hidden != null) && (parameters.Hidden.Length > 1))
+					{
+						throw new Exception("Only one hidden layer is supported");
+					}
+					return new BPTT(parameters);
+				case "dbn":
+					return new DBN(parameters);
+				case "sae":
+					return new SAE(parameters);
+				case "relu":
+					return new ReLU(parameters);
+				case "som":
+					return new SOM(parameters);
+				case "smlp":
+					return new SMLP(parameters);
+				case "amlp":
+					return new AMLP(parameters);
+				case "dmlp":
+					return new DMLP(parameters);
+				case "rnn":
+					return new RNN(parameters);
+				case "nnrev":
+					return new NNRev(parameters);
+				default:
+					throw new Exception("Unrecognized model: " + parameters.Learner);
 			}
 		}
 
@@ -100,42 +62,25 @@ namespace MLSystemManager
 		{
 			//args = new string[]{"-L", "baseline", "-A", "data/iris.arff", "-E", "cross", "10", "-N"};
 
-			//Random rand = new Random(1234); // Use a seed for deterministic results (makes debugging easier)
-			Random rand = new Random(); // No seed for non-deterministic results
+			var rand = Rand.Get();
 
 			//Parse the command line arguments
-			ArgParser parser = new ArgParser(args);
-			string fileName = parser.GetARFF(); //File specified by the user
-			string learnerName = parser.GetLearner(); //Learning algorithm specified by the user
-			string learnParameter = parser.GetLearnParameter(); // Learning parameter specified by the user
-			string evalMethod = parser.GetEvaluation(); //Evaluation method specified by the user
-			string evalParameter = parser.GetEvalParameter(); //Evaluation parameters specified by the user
-			double rate = parser.GetRate();
-			double momentum = parser.GetMomentum();
-			double ph = parser.GetPH();
-			double pi = parser.GetPI();
-			int[] hidden = parser.GetHidden();
-			int outputs = parser.GetOutputs();
-			string outputFileName = parser.GetOutputFileName();
-			string weightsFileName = parser.GetWeightsFileName();
-			bool verbose = parser.GetVerbose();
-			bool normalize = parser.GetNormalize();
-			bool normalizeOutputs = parser.GetNormalizeOutputs();
-			bool prune = parser.GetPrune();
-			bool distance = parser.GetDistance();
-			int k = parser.GetK();
-			string ignore = parser.GetIgnore();
-			bool sample = parser.GetSample();
-			double corruptLevel = parser.GetCorruptLevel();
-			int gridSize = parser.GetGridSize();
-			int iterations = parser.GetIterations();
-			string activation = parser.GetActivation();
-			string actParameter = parser.GetActParameter();
-			bool trainAll = parser.GetTrainAll();
-			double boost = parser.GetBoost();
+			ArgParser.Parse(args);
+			var parameters = Parameters.Get(ArgParser.ParameterFile);
+
+			var fileName = parameters.Arff; //File specified by the user
+			var learnerName = parameters.Learner; //Learning algorithm specified by the user
+			var evalMethod = parameters.Evaluation; //Evaluation method specified by the user
+			var evalParameter = parameters.EvalExtra; //Evaluation parameters specified by the user
+			var rate = parameters.Rate;
+			var outputs = parameters.Outputs;
+			var outputFileName = parameters.OutputFileName;
+			var weightsFileName = parameters.WeightsFileName;
+			var verbose = parameters.Verbose;
+			var normalize = parameters.Normalize;
 
 			// Load the model
-			SupervisedLearner learner = GetLearner(learnerName, learnParameter, rand, rate, momentum, ph, pi, hidden, prune, distance, k, ignore, sample, corruptLevel, gridSize, iterations, activation, actParameter, trainAll, normalizeOutputs, boost);
+			var learner = GetLearner(parameters, rand);
 
 			learner.Verbose = verbose;
 
@@ -150,7 +95,7 @@ namespace MLSystemManager
 			}
 
 			// Load the ARFF file
-			Matrix data = new Matrix();
+			var data = new Matrix();
 			data.LoadArff(fileName);
 
 			if (outputs > data.Cols() - 1)
@@ -178,7 +123,7 @@ namespace MLSystemManager
 
 			if (!string.IsNullOrEmpty(learner.OutputFileName))
 			{
-				using (StreamWriter w = new StreamWriter(learner.OutputFileName))
+				using (var w = new StreamWriter(learner.OutputFileName))
 				{
 					w.WriteLine("Dataset name: " + fileName);
 					w.WriteLine("Number of instances: " + data.Rows());
@@ -198,32 +143,32 @@ namespace MLSystemManager
 			if (evalMethod.Equals("training"))
 			{
 				Console.WriteLine("Calculating accuracy on training set...");
-				VMatrix features = new VMatrix(data, 0, 0, data.Rows(), data.Cols() - outputs);
-				VMatrix labels = new VMatrix();
+				var features = new VMatrix(data, 0, 0, data.Rows(), data.Cols() - outputs);
+				var labels = new VMatrix();
 				if (outputs > 0)
 				{
 					labels = new VMatrix(data, 0, data.Cols() - outputs, data.Rows(), outputs);
 				}
-				Matrix confusion = new Matrix();
-				long startTime = DateTime.Now.Ticks;
-				double[] colMin = new double[data.Cols()];
-				double[] colMax = new double[data.Cols()];
+				var confusion = new Matrix();
+				var startTime = DateTime.Now.Ticks;
+				var colMin = new double[data.Cols()];
+				var colMax = new double[data.Cols()];
 				for (var col = 0; col < data.Cols(); col++)
 				{
 					colMin[col] = data.ColumnMinOrig(col);
 					colMax[col] = data.ColumnMaxOrig(col);
 				}
 				learner.VTrain(features, labels, colMin, colMax);
-				TimeSpan elapsedTime = new TimeSpan(DateTime.Now.Ticks - startTime);
+				var elapsedTime = new TimeSpan(DateTime.Now.Ticks - startTime);
 				Console.WriteLine("Time to train (in seconds): " + elapsedTime.TotalSeconds);
 				if (outputs > 0)
 				{
-					double accuracy = learner.VMeasureAccuracy(features, labels, confusion);
+					var accuracy = learner.VMeasureAccuracy(features, labels, confusion);
 					Console.WriteLine("Training set accuracy: " + accuracy);
 
 					if (!string.IsNullOrEmpty(learner.OutputFileName))
 					{
-						using (StreamWriter w = File.AppendText(learner.OutputFileName))
+						using (var w = File.AppendText(learner.OutputFileName))
 						{
 							w.WriteLine();
 							w.WriteLine("Time to train (in seconds): " + elapsedTime.TotalSeconds);
@@ -241,7 +186,7 @@ namespace MLSystemManager
 			}
 			else if (evalMethod.Equals("static"))
 			{
-				Matrix testData = new Matrix();
+				var testData = new Matrix();
 				testData.LoadArff(evalParameter);
 				if (normalize)
 				{
@@ -251,29 +196,29 @@ namespace MLSystemManager
 				Console.WriteLine("Calculating accuracy on separate test set...");
 				Console.WriteLine("Test set name: " + evalParameter);
 				Console.WriteLine("Number of test instances: " + testData.Rows());
-				VMatrix features = new VMatrix(data, 0, 0, data.Rows(), data.Cols() - outputs);
-				VMatrix labels = new VMatrix(data, 0, data.Cols() - outputs, data.Rows(), outputs);
-				long startTime = DateTime.Now.Ticks;
-				double[] colMin = new double[data.Cols()];
-				double[] colMax = new double[data.Cols()];
+				var features = new VMatrix(data, 0, 0, data.Rows(), data.Cols() - outputs);
+				var labels = new VMatrix(data, 0, data.Cols() - outputs, data.Rows(), outputs);
+				var startTime = DateTime.Now.Ticks;
+				var colMin = new double[data.Cols()];
+				var colMax = new double[data.Cols()];
 				for (var col = 0; col < data.Cols(); col++)
 				{
 					colMin[col] = data.ColumnMinOrig(col);
 					colMax[col] = data.ColumnMaxOrig(col);
 				}
 				learner.VTrain(features, labels, colMin, colMax);
-				TimeSpan elapsedTime = new TimeSpan(DateTime.Now.Ticks - startTime);
+				var elapsedTime = new TimeSpan(DateTime.Now.Ticks - startTime);
 				Console.WriteLine("Time to train (in seconds): " + elapsedTime.TotalSeconds);
-				double trainAccuracy = learner.VMeasureAccuracy(features, labels, null);
+				var trainAccuracy = learner.VMeasureAccuracy(features, labels, null);
 				Console.WriteLine("Training set accuracy: " + trainAccuracy);
-				VMatrix testFeatures = new VMatrix(testData, 0, 0, testData.Rows(), testData.Cols() - outputs);
-				VMatrix testLabels = new VMatrix(testData, 0, testData.Cols() - outputs, testData.Rows(), outputs);
-				Matrix confusion = new Matrix();
-				double testAccuracy = learner.VMeasureAccuracy(testFeatures, testLabels, confusion);
+				var testFeatures = new VMatrix(testData, 0, 0, testData.Rows(), testData.Cols() - outputs);
+				var testLabels = new VMatrix(testData, 0, testData.Cols() - outputs, testData.Rows(), outputs);
+				var confusion = new Matrix();
+				var testAccuracy = learner.VMeasureAccuracy(testFeatures, testLabels, confusion);
 				Console.WriteLine("Test set accuracy: " + testAccuracy);
 				if (!string.IsNullOrEmpty(learner.OutputFileName))
 				{
-					using (StreamWriter w = File.AppendText(learner.OutputFileName))
+					using (var w = File.AppendText(learner.OutputFileName))
 					{
 						w.WriteLine();
 						w.WriteLine("Time to train (in seconds): " + elapsedTime.TotalSeconds);
@@ -291,45 +236,45 @@ namespace MLSystemManager
 			else if (evalMethod.Equals("random"))
 			{
 				Console.WriteLine("Calculating accuracy on a random hold-out set...");
-				double trainPercent = Double.Parse(evalParameter);
+				var trainPercent = Double.Parse(evalParameter);
 				if (trainPercent < 0 || trainPercent > 1)
 				{
 					throw new Exception("Percentage for random evaluation must be between 0 and 1");
 				}
 				Console.WriteLine("Percentage used for training: " + trainPercent);
 				Console.WriteLine("Percentage used for testing: " + (1 - trainPercent));
-				VMatrix vData = new VMatrix(data, 0, 0, data.Rows(), data.Cols());
+				var vData = new VMatrix(data, 0, 0, data.Rows(), data.Cols());
 				if (!(learner is BPTT))
 				{
 					vData.Shuffle(rand);
 				}
-				int trainSize = (int)(trainPercent * vData.Rows());
-				VMatrix trainFeatures = new VMatrix(vData, 0, 0, trainSize, vData.Cols() - outputs);
-				VMatrix trainLabels = new VMatrix(vData, 0, vData.Cols() - outputs, trainSize, outputs);
-				VMatrix testFeatures = new VMatrix(vData, trainSize, 0, vData.Rows() - trainSize, vData.Cols() - outputs);
-				VMatrix testLabels = new VMatrix(vData, trainSize, vData.Cols() - outputs, vData.Rows() - trainSize, outputs);
-				long startTime = DateTime.Now.Ticks;
-				double[] colMin = new double[data.Cols()];
-				double[] colMax = new double[data.Cols()];
+				var trainSize = (int)(trainPercent * vData.Rows());
+				var trainFeatures = new VMatrix(vData, 0, 0, trainSize, vData.Cols() - outputs);
+				var trainLabels = new VMatrix(vData, 0, vData.Cols() - outputs, trainSize, outputs);
+				var testFeatures = new VMatrix(vData, trainSize, 0, vData.Rows() - trainSize, vData.Cols() - outputs);
+				var testLabels = new VMatrix(vData, trainSize, vData.Cols() - outputs, vData.Rows() - trainSize, outputs);
+				var startTime = DateTime.Now.Ticks;
+				var colMin = new double[data.Cols()];
+				var colMax = new double[data.Cols()];
 				for (var col = 0; col < data.Cols(); col++)
 				{
 					colMin[col] = vData.ColumnMinOrig(col);
 					colMax[col] = data.ColumnMaxOrig(col);
 				}
 				learner.VTrain(trainFeatures, trainLabels, colMin, colMax);
-				TimeSpan elapsedTime = new TimeSpan(DateTime.Now.Ticks - startTime);
+				var elapsedTime = new TimeSpan(DateTime.Now.Ticks - startTime);
 				Console.WriteLine("Time to train (in seconds): " + elapsedTime.TotalSeconds);
-				double trainAccuracy = learner.VMeasureAccuracy(trainFeatures, trainLabels, null);
+				var trainAccuracy = learner.VMeasureAccuracy(trainFeatures, trainLabels, null);
 				Console.WriteLine("Training set accuracy: " + trainAccuracy);
-				Matrix confusion = new Matrix();
-				double testAccuracy = learner.VMeasureAccuracy(testFeatures, testLabels, confusion);
+				var confusion = new Matrix();
+				var testAccuracy = learner.VMeasureAccuracy(testFeatures, testLabels, confusion);
 				Console.WriteLine("Test set accuracy: " + testAccuracy);
-				double testMSE = learner.VGetMSE(testFeatures, testLabels);
+				var testMSE = learner.VGetMSE(testFeatures, testLabels);
 				Console.WriteLine("Test set MSE: " + testMSE);
                 
 				if (!string.IsNullOrEmpty(learner.OutputFileName))
 				{
-					using (StreamWriter w = File.AppendText(learner.OutputFileName))
+					using (var w = File.AppendText(learner.OutputFileName))
 					{
 						w.WriteLine();
 						w.WriteLine("Percentage used for training: " + trainPercent);
@@ -351,7 +296,7 @@ namespace MLSystemManager
 			else if (evalMethod.Equals("cross"))
 			{
 				Console.WriteLine("Calculating accuracy using cross-validation...");
-				int folds = int.Parse(evalParameter);
+				var folds = int.Parse(evalParameter);
 				if (folds <= 0)
 				{
 					throw new Exception("Number of folds must be greater than 0");
@@ -359,32 +304,32 @@ namespace MLSystemManager
 				Console.WriteLine("Number of folds: " + folds);
 				if (!string.IsNullOrEmpty(learner.OutputFileName))
 				{
-					using (StreamWriter w = File.AppendText(learner.OutputFileName))
+					using (var w = File.AppendText(learner.OutputFileName))
 					{
 						w.WriteLine();
 						w.WriteLine("Calculating accuracy using cross-validation...");
 						w.WriteLine("Number of folds: " + folds);
 					}
 				}
-				int reps = 1;
-				double sumAccuracy = 0.0;
+				var reps = 1;
+				var sumAccuracy = 0.0;
 				long ticks = 0;
-				for (int j = 0; j < reps; j++)
+				for (var j = 0; j < reps; j++)
 				{
 					data.Shuffle(rand);
-					for (int i = 0; i < folds; i++)
+					for (var i = 0; i < folds; i++)
 					{
-						int begin = i * data.Rows() / folds;
-						int end = (i + 1) * data.Rows() / folds;
-						Matrix trainFeatures = new Matrix(data, 0, 0, begin, data.Cols() - outputs);
-						Matrix trainLabels = new Matrix(data, 0, data.Cols() - outputs, begin, outputs);
-						Matrix testFeatures = new Matrix(data, begin, 0, end - begin, data.Cols() - outputs);
-						Matrix testLabels = new Matrix(data, begin, data.Cols() - outputs, end - begin, outputs);
+						var begin = i * data.Rows() / folds;
+						var end = (i + 1) * data.Rows() / folds;
+						var trainFeatures = new Matrix(data, 0, 0, begin, data.Cols() - outputs);
+						var trainLabels = new Matrix(data, 0, data.Cols() - outputs, begin, outputs);
+						var testFeatures = new Matrix(data, begin, 0, end - begin, data.Cols() - outputs);
+						var testLabels = new Matrix(data, begin, data.Cols() - outputs, end - begin, outputs);
 						trainFeatures.Add(data, end, 0, data.Rows() - end);
 						trainLabels.Add(data, end, data.Cols() - outputs, data.Rows() - end);
-						long startTime = DateTime.Now.Ticks;
-						double[] colMin = new double[data.Cols()];
-						double[] colMax = new double[data.Cols()];
+						var startTime = DateTime.Now.Ticks;
+						var colMin = new double[data.Cols()];
+						var colMax = new double[data.Cols()];
 						for (var col = 0; col < data.Cols(); col++)
 						{
 							colMin[col] = data.ColumnMinOrig(col);
@@ -392,12 +337,12 @@ namespace MLSystemManager
 						}
 						learner.Train(trainFeatures, trainLabels, colMin, colMax);
 						ticks = DateTime.Now.Ticks - startTime;
-						double accuracy = learner.MeasureAccuracy(testFeatures, testLabels, null);
+						var accuracy = learner.MeasureAccuracy(testFeatures, testLabels, null);
 						sumAccuracy += accuracy;
 						Console.WriteLine("Rep=" + j + ", Fold=" + i + ", Accuracy=" + accuracy);
 						if (!string.IsNullOrEmpty(learner.OutputFileName))
 						{
-							using (StreamWriter w = File.AppendText(learner.OutputFileName))
+							using (var w = File.AppendText(learner.OutputFileName))
 							{
 								w.WriteLine("Rep=" + j + ", Fold=" + i + ", Accuracy=" + accuracy);
 								w.WriteLine();
@@ -406,12 +351,12 @@ namespace MLSystemManager
 					}
 				}
 				ticks /= (reps * folds);
-				TimeSpan elapsedTime = new TimeSpan(ticks);
+				var elapsedTime = new TimeSpan(ticks);
 				Console.WriteLine("Average time to train (in seconds): " + elapsedTime.TotalSeconds);
 				Console.WriteLine("Mean accuracy=" + (sumAccuracy / (reps * folds)));
 				if (!string.IsNullOrEmpty(learner.OutputFileName))
 				{
-					using (StreamWriter w = File.AppendText(learner.OutputFileName))
+					using (var w = File.AppendText(learner.OutputFileName))
 					{
 						w.WriteLine();
 						w.WriteLine("Average time to train (in seconds): " + elapsedTime.TotalSeconds);

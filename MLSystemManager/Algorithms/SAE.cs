@@ -155,13 +155,13 @@ namespace MLSystemManager.Algorithms
 			m_layers = new List<List<Node>>();
 		}
 
-		public SAE(Random rand, double rate, double momentum, double corruptLevel, int[] hidden)
+		public SAE(Parameters parameters)
 		{
-			m_rand = rand;
-			m_rate = rate;
-			m_momentum = momentum;
-			m_corruptLevel = corruptLevel;
-			m_hidden = hidden;
+			m_rand = Rand.Get();
+			m_rate = parameters.Rate;
+			m_momentum = parameters.Momentum;
+			m_corruptLevel = parameters.CorruptLevel;
+			m_hidden = parameters.Hidden;
 			m_layers = new List<List<Node>>();
 		}
 

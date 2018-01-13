@@ -20,11 +20,11 @@ namespace MLSystemManager.Algorithms
 		{
 		}
 
-		public InstanceBasedLearner(bool distance, int k, bool prune)
+		public InstanceBasedLearner(Parameters parameters)
 		{
-			Distance = distance;
-			K = k;
-			Prune = prune;
+			Distance = parameters.Distance;
+			K = parameters.K;
+			Prune = parameters.Prune;
 		}
 
 		public override void Train(Matrix features, Matrix labels, double[] colMin, double[] colMax)

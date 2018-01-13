@@ -22,7 +22,7 @@ namespace MLSystemManager.Algorithms
 		private int m_gridSize = 0;							// dimensions of the grid
 		private StreamWriter m_outputFile = null;
 
-		class Node
+		private class Node
 		{
 			public int row { get; set; }					// the row for this node
 			public int col { get; set; }					// the column for this node
@@ -92,12 +92,12 @@ namespace MLSystemManager.Algorithms
 			m_layers = new List<List<Node>>();
 		}
 
-		public SOM(Random rand, double rate, int iterations, int gridSize)
+		public SOM(Parameters parameters)
 		{
-			m_rand = rand;
-			m_rate = rate;
-			m_iterations = iterations;
-			m_gridSize = gridSize;
+			m_rand = Rand.Get();
+			m_rate = parameters.Rate;
+			m_iterations = parameters.Iterations;
+			m_gridSize = parameters.GridSize;
 			m_layers = new List<List<Node>>();
 		}
 

@@ -9,17 +9,17 @@ namespace MLSystemManager.Algorithms
 {
 	class Clustering : SupervisedLearner
 	{
-		private string Algorithm { get; set; }
-		private int K { get; set; }
-		private Random Rand { get; set; }
-		private VMatrix Features { get; set; }
-		private VMatrix Labels { get; set; }
-		private List<int> Ignore { get; set; }
-		private List<Cluster> Clusters { get; set; }
-		private double[,] Distances { get; set; }
-		private StreamWriter OutputFile { get; set; }
+		private string _algorithm;
+		private int _k;
+		private Random _rand;
+		private VMatrix _features;
+		private VMatrix _labels;
+		private List<int> _ignore;
+		private List<Cluster> _clusters;
+		private double[,] _distances;
+		private StreamWriter _outputFile;
 
-		class Cluster
+		private class Cluster
 		{
 			public int Number { get; set; }
 			private VMatrix Features { get; set; }
@@ -224,19 +224,19 @@ namespace MLSystemManager.Algorithms
 		{
 		}
 
-		public Clustering(string algorithm, int k, Random rand, string ignore)
+		public Clustering(Parameters parameters)
 		{
-			Algorithm = algorithm;
-			K = k;
-			Rand = rand;
+			_algorithm = parameters.LearnExtra;
+			_k = parameters.K;
+			_rand = Rand.Get();
 
-			Ignore = new List<int>();
-			if (!string.IsNullOrEmpty(ignore))
+			_ignore = new List<int>();
+			if (!string.IsNullOrEmpty(parameters.Ignore))
 			{
-				var si = ignore.Substring(1, ignore.Length - 2).Split(',');
+				var si = parameters.Ignore.Substring(1, parameters.Ignore.Length - 2).Split(',');
 				foreach (var s in si)
 				{
-					Ignore.Add(int.Parse(s));
+					_ignore.Add(int.Parse(s));
 				}
 			}
 		}
@@ -247,35 +247,35 @@ namespace MLSystemManager.Algorithms
 
 		public override void VTrain(VMatrix features, VMatrix labels, double[] colMin, double[] colMax)
 		{
-			Features = new VMatrix(features, 0, 0, features.Rows(), features.Cols());
+			_features = new VMatrix(features, 0, 0, features.Rows(), features.Cols());
 			if (labels.Data != null)
 			{
-				Labels = new VMatrix(labels, 0, 0, labels.Rows(), labels.Cols());
+				_labels = new VMatrix(labels, 0, 0, labels.Rows(), labels.Cols());
 			}
-			Clusters = new List<Cluster>();
+			_clusters = new List<Cluster>();
 			if (!string.IsNullOrEmpty(OutputFileName))
 			{
-				OutputFile = File.AppendText(OutputFileName);
-				OutputFile.Write("Algorithm: ");
+				_outputFile = File.AppendText(OutputFileName);
+				_outputFile.Write("Algorithm: ");
 			}
 
-			if (Algorithm == "k")
+			if (_algorithm == "k")
 			{
-				if (OutputFile != null)
+				if (_outputFile != null)
 				{
-					OutputFile.WriteLine("k-means (k = " + K + ")");
+					_outputFile.WriteLine("k-means (k = " + _k + ")");
 				}
 
 //				Features.Shuffle(Rand, Labels);
 
 				// create the initial clusters
-				for (var k = 0; k < K; k++)
+				for (var k = 0; k < _k; k++)
 				{
-					var cluster = new Cluster(k, Features, k, Ignore);
-					Clusters.Add(cluster);
-					if (OutputFile != null)
+					var cluster = new Cluster(k, _features, k, _ignore);
+					_clusters.Add(cluster);
+					if (_outputFile != null)
 					{
-						cluster.PrintCentroid(OutputFile);
+						cluster.PrintCentroid(_outputFile);
 					}
 				}
 
@@ -284,25 +284,25 @@ namespace MLSystemManager.Algorithms
 				for (;;)
 				{
 					var ssd = TrainK();
-					if (OutputFile != null)
+					if (_outputFile != null)
 					{
-						OutputFile.WriteLine(string.Format("Sum squared-distance of each row with its centroid={0}", ssd));
+						_outputFile.WriteLine(string.Format("Sum squared-distance of each row with its centroid={0}", ssd));
 					}
 
 					if (ssd != lastSsd)
 					{
 						lastSsd = ssd;
-						if (OutputFile != null)
+						if (_outputFile != null)
 						{
-							OutputFile.WriteLine("Recomputing the centroids of each cluster...");
+							_outputFile.WriteLine("Recomputing the centroids of each cluster...");
 						}
-						foreach (var cluster in Clusters)
+						foreach (var cluster in _clusters)
 						{
 							cluster.Recalculate();
 							cluster.ClearInstances();
-							if (OutputFile != null)
+							if (_outputFile != null)
 							{
-								cluster.PrintCentroid(OutputFile);
+								cluster.PrintCentroid(_outputFile);
 							}
 						}
 					}
@@ -312,37 +312,37 @@ namespace MLSystemManager.Algorithms
 					}
 				}
 			}
-			else if (Algorithm == "single")
+			else if (_algorithm == "single")
 			{
-				if (OutputFile != null)
+				if (_outputFile != null)
 				{
-					OutputFile.WriteLine("HAC single (k = " + K + ")");
+					_outputFile.WriteLine("HAC single (k = " + _k + ")");
 				}
 
 				// create the initial clusters
-				for (var row = 0; row < Features.Rows(); row++)
+				for (var row = 0; row < _features.Rows(); row++)
 				{
-					var cluster = new Cluster(0, Features, row, Ignore);
+					var cluster = new Cluster(0, _features, row, _ignore);
 					cluster.AddInstance(row);
-					Clusters.Add(cluster);
+					_clusters.Add(cluster);
 				}
 
 				// create the distance matrix
-				Distances = new double[Features.Rows(), Features.Rows()];
+				_distances = new double[_features.Rows(), _features.Rows()];
 
-				for (var row = 0; row < Features.Rows(); row++)
+				for (var row = 0; row < _features.Rows(); row++)
 				{
-					for (var row2 = row; row2 < Features.Rows(); row2++)
+					for (var row2 = row; row2 < _features.Rows(); row2++)
 					{
 						double distance = 0;
 						if (row2 > row)
 						{
-							distance = Clusters[row].GetDistance(Features.Row(row2));
+							distance = _clusters[row].GetDistance(_features.Row(row2));
 						}
-						Distances[row, row2] = distance;
+						_distances[row, row2] = distance;
 						if (row != row2)
 						{
-							Distances[row2, row] = distance;
+							_distances[row2, row] = distance;
 						}
 					}
 				}
@@ -352,39 +352,39 @@ namespace MLSystemManager.Algorithms
 				do
 				{
 					TrainSingle(iteration++);
-				} while (Clusters.Count > K);
+				} while (_clusters.Count > _k);
 			}
-			else if (Algorithm == "complete")
+			else if (_algorithm == "complete")
 			{
-				if (OutputFile != null)
+				if (_outputFile != null)
 				{
-					OutputFile.WriteLine("HAC complete (k = " + K + ")");
+					_outputFile.WriteLine("HAC complete (k = " + _k + ")");
 				}
 
 				// create the initial clusters
-				for (var row = 0; row < Features.Rows(); row++)
+				for (var row = 0; row < _features.Rows(); row++)
 				{
-					var cluster = new Cluster(0, Features, row, Ignore);
+					var cluster = new Cluster(0, _features, row, _ignore);
 					cluster.AddInstance(row);
-					Clusters.Add(cluster);
+					_clusters.Add(cluster);
 				}
 
 				// create the distance matrix
-				Distances = new double[Features.Rows(), Features.Rows()];
+				_distances = new double[_features.Rows(), _features.Rows()];
 
-				for (var row = 0; row < Features.Rows(); row++)
+				for (var row = 0; row < _features.Rows(); row++)
 				{
-					for (var row2 = row; row2 < Features.Rows(); row2++)
+					for (var row2 = row; row2 < _features.Rows(); row2++)
 					{
 						double distance = 0;
 						if (row2 > row)
 						{
-							distance = Clusters[row].GetDistance(Features.Row(row2));
+							distance = _clusters[row].GetDistance(_features.Row(row2));
 						}
-						Distances[row, row2] = distance;
+						_distances[row, row2] = distance;
 						if (row != row2)
 						{
-							Distances[row2, row] = distance;
+							_distances[row2, row] = distance;
 						}
 					}
 				}
@@ -394,39 +394,39 @@ namespace MLSystemManager.Algorithms
 				do
 				{
 					TrainComplete(iteration++);
-				} while (Clusters.Count > K);
+				} while (_clusters.Count > _k);
 			}
-			else if (Algorithm == "average")
+			else if (_algorithm == "average")
 			{
-				if (OutputFile != null)
+				if (_outputFile != null)
 				{
-					OutputFile.WriteLine("HAC average (k = " + K + ")");
+					_outputFile.WriteLine("HAC average (k = " + _k + ")");
 				}
 
 				// create the initial clusters
-				for (var row = 0; row < Features.Rows(); row++)
+				for (var row = 0; row < _features.Rows(); row++)
 				{
-					var cluster = new Cluster(0, Features, row, Ignore);
+					var cluster = new Cluster(0, _features, row, _ignore);
 					cluster.AddInstance(row);
-					Clusters.Add(cluster);
+					_clusters.Add(cluster);
 				}
 
 				// create the distance matrix
-				Distances = new double[Features.Rows(), Features.Rows()];
+				_distances = new double[_features.Rows(), _features.Rows()];
 
-				for (var row = 0; row < Features.Rows(); row++)
+				for (var row = 0; row < _features.Rows(); row++)
 				{
-					for (var row2 = row; row2 < Features.Rows(); row2++)
+					for (var row2 = row; row2 < _features.Rows(); row2++)
 					{
 						double distance = 0;
 						if (row2 > row)
 						{
-							distance = Clusters[row].GetDistance(Features.Row(row2));
+							distance = _clusters[row].GetDistance(_features.Row(row2));
 						}
-						Distances[row, row2] = distance;
+						_distances[row, row2] = distance;
 						if (row != row2)
 						{
-							Distances[row2, row] = distance;
+							_distances[row2, row] = distance;
 						}
 					}
 				}
@@ -436,116 +436,116 @@ namespace MLSystemManager.Algorithms
 				do
 				{
 					TrainAverage(iteration++);
-				} while (Clusters.Count > K);
+				} while (_clusters.Count > _k);
 			}
 			else
 			{
-				throw new Exception("Inavlid Algorithm - " + Algorithm);
+				throw new Exception("Inavlid Algorithm - " + _algorithm);
 			}
 
-			if (OutputFile != null)
+			if (_outputFile != null)
 			{
-				OutputFile.WriteLine();
-				OutputFile.WriteLine("Cluster centroids:");
+				_outputFile.WriteLine();
+				_outputFile.WriteLine("Cluster centroids:");
 				
-				OutputFile.Write("Cluster#\t\t\t");
-				for (var c = 0; c < Clusters.Count; c++)
+				_outputFile.Write("Cluster#\t\t\t");
+				for (var c = 0; c < _clusters.Count; c++)
 				{
-					OutputFile.Write("\t\t" + c);
+					_outputFile.Write("\t\t" + c);
 				}
-				OutputFile.WriteLine();
+				_outputFile.WriteLine();
 
-				OutputFile.Write("# of instances:\t\t\t");
-				for (var c = 0; c < Clusters.Count; c++)
+				_outputFile.Write("# of instances:\t\t\t");
+				for (var c = 0; c < _clusters.Count; c++)
 				{
-					OutputFile.Write("\t\t" + Clusters[c].Instances.Count);
+					_outputFile.Write("\t\t" + _clusters[c].Instances.Count);
 				}
-				OutputFile.WriteLine();
+				_outputFile.WriteLine();
 
-				OutputFile.WriteLine("==========================================================================================================");
-				for (var col = 0; col < Features.Cols(); col++)
+				_outputFile.WriteLine("==========================================================================================================");
+				for (var col = 0; col < _features.Cols(); col++)
 				{
-					if (!Ignore.Contains(col))
+					if (!_ignore.Contains(col))
 					{
-						OutputFile.Write(Features.AttrName(col));
-						foreach (var cluster in Clusters)
+						_outputFile.Write(_features.AttrName(col));
+						foreach (var cluster in _clusters)
 						{
 							if (cluster.Centroid[col] == Matrix.MISSING)
 							{
-								OutputFile.Write("\t?");
+								_outputFile.Write("\t?");
 							}
-							else if (Features.ValueCount(col) < 2)
+							else if (_features.ValueCount(col) < 2)
 							{
 								// continuous
-								OutputFile.Write(string.Format("\t{0:0.#####}", cluster.Centroid[col]));
+								_outputFile.Write(string.Format("\t{0:0.#####}", cluster.Centroid[col]));
 							}
 							else
 							{
-								OutputFile.Write("\t" + Features.AttrValue(col, (int)cluster.Centroid[col]));
+								_outputFile.Write("\t" + _features.AttrValue(col, (int)cluster.Centroid[col]));
 							}
 						}
-						OutputFile.WriteLine();
+						_outputFile.WriteLine();
 					}
 				}
 
 				double sse = 0;
-				OutputFile.Write("Sum squared error:\t");
-				foreach (var cluster in Clusters)
+				_outputFile.Write("Sum squared error:\t");
+				foreach (var cluster in _clusters)
 				{
 					var error = cluster.GetSSE();
 					sse += error;
-					OutputFile.Write(string.Format("\t{0:0.#####}", error));
+					_outputFile.Write(string.Format("\t{0:0.#####}", error));
 				}
-				OutputFile.WriteLine();
+				_outputFile.WriteLine();
 
-				OutputFile.WriteLine("Number of clusters: " + Clusters.Count);
-				OutputFile.WriteLine(string.Format("Total sum squared error: {0:0.#####}", sse));
-				OutputFile.WriteLine(string.Format("DBI: {0}", GetDBI()));
+				_outputFile.WriteLine("Number of clusters: " + _clusters.Count);
+				_outputFile.WriteLine(string.Format("Total sum squared error: {0:0.#####}", sse));
+				_outputFile.WriteLine(string.Format("DBI: {0}", GetDBI()));
 			}
 
-			if (OutputFile != null)
+			if (_outputFile != null)
 			{
-				OutputFile.Close();
+				_outputFile.Close();
 			}
 		}
 
 		private double TrainK()
 		{
-			if (OutputFile != null)
+			if (_outputFile != null)
 			{
-				OutputFile.WriteLine("Assigning each row to the cluster of the nearest centroid...");
-				OutputFile.WriteLine("The cluster assignments are:");
+				_outputFile.WriteLine("Assigning each row to the cluster of the nearest centroid...");
+				_outputFile.WriteLine("The cluster assignments are:");
 			}
 
 			// add the training set elements to the clusters
-			for (var row = 0; row < Features.Rows(); row++)
+			for (var row = 0; row < _features.Rows(); row++)
 			{
-				var cluster = GetNearestCluster(Features.Row(row));
+				var cluster = GetNearestCluster(_features.Row(row));
 				cluster.AddInstance(row);
 
-				if (OutputFile != null)
+				if (_outputFile != null)
 				{
 					if (row % 10 == 0)
 					{
-						OutputFile.WriteLine();
-						OutputFile.Write("\t");
+						_outputFile.WriteLine();
+						_outputFile.Write("\t");
 					}
 					else
 					{
-						OutputFile.Write(", ");
+						_outputFile.Write(", ");
 					}
-					OutputFile.Write(string.Format("{0}={1}", row, cluster.Number));
+					_outputFile.Write(string.Format("{0}={1}", row, cluster.Number));
 				}
 			}
 
-			if (OutputFile != null)
+			if (_outputFile != null)
 			{
-				OutputFile.WriteLine();
+				_outputFile.WriteLine();
 			}
 
 			double sse = 0;
 
-			foreach (var cluster in Clusters)
+			foreach (var cluster in _clusters)
 			{
 				sse += cluster.GetSSE();
 			}
@@ -555,10 +555,10 @@ namespace MLSystemManager.Algorithms
 
 		private Cluster GetNearestCluster(double[] features)
 		{
-			Cluster nearest = Clusters[0];
+			Cluster nearest = _clusters[0];
 			double nDistance = double.MaxValue;
 
-			foreach (var cluster in Clusters)
+			foreach (var cluster in _clusters)
 			{
 				var distance = cluster.GetDistance(features);
 				if (distance < nDistance)
@@ -577,26 +577,26 @@ namespace MLSystemManager.Algorithms
 			int cluster1 = 0;
 			int cluster2 = 0;
 
-			if (OutputFile != null)
+			if (_outputFile != null)
 			{
-				OutputFile.WriteLine();
-				OutputFile.WriteLine("--------------");
-				OutputFile.WriteLine("Iteration " + iteration);
-				OutputFile.WriteLine("--------------");
+				_outputFile.WriteLine();
+				_outputFile.WriteLine("--------------");
+				_outputFile.WriteLine("Iteration " + iteration);
+				_outputFile.WriteLine("--------------");
 			}
 
 			// find the nearest clusters
-			for (var beg = 0; beg < Clusters.Count - 1; beg++)
+			for (var beg = 0; beg < _clusters.Count - 1; beg++)
 			{
-				for (var end = beg + 1; end < Clusters.Count; end++)
+				for (var end = beg + 1; end < _clusters.Count; end++)
 				{
-					foreach (var begi in Clusters[beg].Instances)
+					foreach (var begi in _clusters[beg].Instances)
 					{
-						foreach (var endi in Clusters[end].Instances)
+						foreach (var endi in _clusters[end].Instances)
 						{
-							if (Distances[begi, endi] < minDist)
+							if (_distances[begi, endi] < minDist)
 							{
-								minDist = Distances[begi, endi];
+								minDist = _distances[begi, endi];
 								cluster1 = beg;
 								cluster2 = end;
 							}
@@ -605,30 +605,30 @@ namespace MLSystemManager.Algorithms
 				}
 			}
 
-			if (OutputFile != null)
+			if (_outputFile != null)
 			{
-				OutputFile.WriteLine("Merging clusters {0} and {1}\tDistance: {2}", cluster1, cluster2, minDist);
-				OutputFile.WriteLine();
+				_outputFile.WriteLine("Merging clusters {0} and {1}\tDistance: {2}", cluster1, cluster2, minDist);
+				_outputFile.WriteLine();
 			}
 
 			// merge the clusters
-			foreach (var i in Clusters[cluster2].Instances)
+			foreach (var i in _clusters[cluster2].Instances)
 			{
-				Clusters[cluster1].AddInstance(i);
+				_clusters[cluster1].AddInstance(i);
 			}
 
-			Clusters[cluster1].Recalculate();
-			Clusters.RemoveAt(cluster2);
+			_clusters[cluster1].Recalculate();
+			_clusters.RemoveAt(cluster2);
 
-			for (var c = 0; c < Clusters.Count; c++)
+			for (var c = 0; c < _clusters.Count; c++)
 			{
-				Clusters[c].Number = c;
-				Clusters[c].PrintInstances(OutputFile);
+				_clusters[c].Number = c;
+				_clusters[c].PrintInstances(_outputFile);
 			}
 
 			double sse = 0;
 
-			foreach (var cluster in Clusters)
+			foreach (var cluster in _clusters)
 			{
 				sse += cluster.GetSSE();
 			}
@@ -642,27 +642,27 @@ namespace MLSystemManager.Algorithms
 			int cluster1 = 0;
 			int cluster2 = 0;
 
-			if (OutputFile != null)
+			if (_outputFile != null)
 			{
-				OutputFile.WriteLine();
-				OutputFile.WriteLine("--------------");
-				OutputFile.WriteLine("Iteration " + iteration);
-				OutputFile.WriteLine("--------------");
+				_outputFile.WriteLine();
+				_outputFile.WriteLine("--------------");
+				_outputFile.WriteLine("Iteration " + iteration);
+				_outputFile.WriteLine("--------------");
 			}
 
 			// find the nearest clusters
-			for (var beg = 0; beg < Clusters.Count - 1; beg++)
+			for (var beg = 0; beg < _clusters.Count - 1; beg++)
 			{
-				for (var end = beg + 1; end < Clusters.Count; end++)
+				for (var end = beg + 1; end < _clusters.Count; end++)
 				{
 					double maxDist = double.MinValue;
-					foreach (var begi in Clusters[beg].Instances)
+					foreach (var begi in _clusters[beg].Instances)
 					{
-						foreach (var endi in Clusters[end].Instances)
+						foreach (var endi in _clusters[end].Instances)
 						{
-							if (Distances[begi, endi] > maxDist)
+							if (_distances[begi, endi] > maxDist)
 							{
-								maxDist = Distances[begi, endi];
+								maxDist = _distances[begi, endi];
 							}
 						}
 					}
@@ -675,30 +675,30 @@ namespace MLSystemManager.Algorithms
 				}
 			}
 
-			if (OutputFile != null)
+			if (_outputFile != null)
 			{
-				OutputFile.WriteLine("Merging clusters {0} and {1}\tDistance: {2}", cluster1, cluster2, minDist);
-				OutputFile.WriteLine();
+				_outputFile.WriteLine("Merging clusters {0} and {1}\tDistance: {2}", cluster1, cluster2, minDist);
+				_outputFile.WriteLine();
 			}
 
 			// merge the clusters
-			foreach (var i in Clusters[cluster2].Instances)
+			foreach (var i in _clusters[cluster2].Instances)
 			{
-				Clusters[cluster1].AddInstance(i);
+				_clusters[cluster1].AddInstance(i);
 			}
 
-			Clusters[cluster1].Recalculate();
-			Clusters.RemoveAt(cluster2);
+			_clusters[cluster1].Recalculate();
+			_clusters.RemoveAt(cluster2);
 
-			for (var c = 0; c < Clusters.Count; c++)
+			for (var c = 0; c < _clusters.Count; c++)
 			{
-				Clusters[c].Number = c;
-				Clusters[c].PrintInstances(OutputFile);
+				_clusters[c].Number = c;
+				_clusters[c].PrintInstances(_outputFile);
 			}
 
 			double sse = 0;
 
-			foreach (var cluster in Clusters)
+			foreach (var cluster in _clusters)
 			{
 				sse += cluster.GetSSE();
 			}
@@ -712,26 +712,26 @@ namespace MLSystemManager.Algorithms
 			int cluster1 = 0;
 			int cluster2 = 0;
 
-			if (OutputFile != null)
+			if (_outputFile != null)
 			{
-				OutputFile.WriteLine();
-				OutputFile.WriteLine("--------------");
-				OutputFile.WriteLine("Iteration " + iteration);
-				OutputFile.WriteLine("--------------");
+				_outputFile.WriteLine();
+				_outputFile.WriteLine("--------------");
+				_outputFile.WriteLine("Iteration " + iteration);
+				_outputFile.WriteLine("--------------");
 			}
 
 			// find the nearest clusters
-			for (var beg = 0; beg < Clusters.Count - 1; beg++)
+			for (var beg = 0; beg < _clusters.Count - 1; beg++)
 			{
-				for (var end = beg + 1; end < Clusters.Count; end++)
+				for (var end = beg + 1; end < _clusters.Count; end++)
 				{
 					double totDist = 0;
 					int count = 0;
-					foreach (var begi in Clusters[beg].Instances)
+					foreach (var begi in _clusters[beg].Instances)
 					{
-						foreach (var endi in Clusters[end].Instances)
+						foreach (var endi in _clusters[end].Instances)
 						{
-							totDist += Distances[begi, endi];
+							totDist += _distances[begi, endi];
 							count++;
 						}
 					}
@@ -746,30 +746,30 @@ namespace MLSystemManager.Algorithms
 				}
 			}
 
-			if (OutputFile != null)
+			if (_outputFile != null)
 			{
-				OutputFile.WriteLine("Merging clusters {0} and {1}\tDistance: {2}", cluster1, cluster2, minDist);
-				OutputFile.WriteLine();
+				_outputFile.WriteLine("Merging clusters {0} and {1}\tDistance: {2}", cluster1, cluster2, minDist);
+				_outputFile.WriteLine();
 			}
 
 			// merge the clusters
-			foreach (var i in Clusters[cluster2].Instances)
+			foreach (var i in _clusters[cluster2].Instances)
 			{
-				Clusters[cluster1].AddInstance(i);
+				_clusters[cluster1].AddInstance(i);
 			}
 
-			Clusters[cluster1].Recalculate();
-			Clusters.RemoveAt(cluster2);
+			_clusters[cluster1].Recalculate();
+			_clusters.RemoveAt(cluster2);
 
-			for (var c = 0; c < Clusters.Count; c++)
+			for (var c = 0; c < _clusters.Count; c++)
 			{
-				Clusters[c].Number = c;
-				Clusters[c].PrintInstances(OutputFile);
+				_clusters[c].Number = c;
+				_clusters[c].PrintInstances(_outputFile);
 			}
 
 			double sse = 0;
 
-			foreach (var cluster in Clusters)
+			foreach (var cluster in _clusters)
 			{
 				sse += cluster.GetSSE();
 			}
@@ -781,14 +781,14 @@ namespace MLSystemManager.Algorithms
 		{
 			double dbi = 0;
 
-			for (var c1 = 0; c1 < Clusters.Count - 1; c1++)
+			for (var c1 = 0; c1 < _clusters.Count - 1; c1++)
 			{
-				double S1 = Clusters[c1].GetSSE() / Clusters[c1].Instances.Count;
+				double S1 = _clusters[c1].GetSSE() / _clusters[c1].Instances.Count;
 				double maxR = double.MinValue;
-				for (var c2 = c1 + 1; c2 < Clusters.Count; c2++)
+				for (var c2 = c1 + 1; c2 < _clusters.Count; c2++)
 				{
-					double S2 = Clusters[c2].GetSSE() / Clusters[c2].Instances.Count;
-					double d = Clusters[c1].GetError(Clusters[c2].Centroid);
+					double S2 = _clusters[c2].GetSSE() / _clusters[c2].Instances.Count;
+					double d = _clusters[c1].GetError(_clusters[c2].Centroid);
 					double R = (S1 + S2) / d;
 					if (R > maxR)
 					{
@@ -799,7 +799,7 @@ namespace MLSystemManager.Algorithms
 				dbi += maxR;
 			}
 
-			return dbi / Clusters.Count;
+			return dbi / _clusters.Count;
 		}
 
 		public override void Predict(double[] features, double[] labels)
@@ -810,8 +810,8 @@ namespace MLSystemManager.Algorithms
 
 		private void GetOutput(Cluster cluster, double[] labels)
 		{
-			bool isContinuous = Labels.ValueCount(0) < 2;
-			int[] count = new int[isContinuous ? 1 : Labels.ValueCount(0)];
+			bool isContinuous = _labels.ValueCount(0) < 2;
+			int[] count = new int[isContinuous ? 1 : _labels.ValueCount(0)];
 			double result = 0;
 
 			// calculate the output
@@ -820,12 +820,12 @@ namespace MLSystemManager.Algorithms
 				if (isContinuous)
 				{
 					// continuous
-					result += Labels.Get(cluster.Instances[i], 0);
+					result += _labels.Get(cluster.Instances[i], 0);
 					count[0]++;
 				}
 				else
 				{
-					double idx = Labels.Get(cluster.Instances[i], 0);
+					double idx = _labels.Get(cluster.Instances[i], 0);
 					if (idx != Matrix.MISSING)
 					{
 						count[(int)idx]++;

@@ -163,15 +163,15 @@ namespace MLSystemManager.Algorithms
 			m_layers = new List<List<Node>>();
 		}
 
-		public DBN(Random rand, double rate, double momentum, double ph, double pi, bool sample, int[] hidden)
+		public DBN(Parameters parameters)
 		{
-			m_rand = rand;
-			m_rate = rate;
-			m_momentum = momentum;
-			m_ph = ph;
-			m_pi = pi;
-			m_sample = sample;
-			m_hidden = hidden;
+			m_rand = Rand.Get();
+			m_rate = parameters.Rate;
+			m_momentum = parameters.Momentum;
+			m_ph = parameters.Ph;
+			m_pi = parameters.Pi;
+			m_sample = parameters.Sample;
+			m_hidden = parameters.Hidden;
 			m_layers = new List<List<Node>>();
 		}
 

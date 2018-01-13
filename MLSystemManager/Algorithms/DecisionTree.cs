@@ -55,9 +55,9 @@ namespace MLSystemManager.Algorithms
 			m_prune = false;
 		}
 
-		public DecisionTree(bool prune)
+		public DecisionTree(Parameters parameters)
 		{
-			m_prune = prune;
+			m_prune = parameters.Prune;
 		}
 
 		public override void Train(Matrix features, Matrix labels, double[] colMin, double[] colMax)

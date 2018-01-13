@@ -152,13 +152,13 @@ namespace MLSystemManager.Algorithms
 			m_layers = new List<List<Node>>();
 		}
 
-		public NNRev(Random rand, double rate, double momentum, string activation, string actParameter, int[] hidden)
+		public NNRev(Parameters parameters)
 		{
-			m_rand = rand;
-			m_rate = rate;
-			m_momentum = momentum;
-			m_activation = activation;
-			var sa = actParameter.Split(',');
+			m_rand = Rand.Get();
+			m_rate = parameters.Rate;
+			m_momentum = parameters.Momentum;
+			m_activation = parameters.Activation;
+			var sa = parameters.ActParameter.Split(',');
 			if (sa.Length > 0)
 			{
 				m_actLeak = double.Parse(sa[0]);
@@ -176,7 +176,7 @@ namespace MLSystemManager.Algorithms
 				m_actRandom = (sa[3].ToLower() == "r");
 			}
 
-			m_hidden = hidden;
+			m_hidden = parameters.Hidden;
 			m_layers = new List<List<Node>>();
 		}
 
