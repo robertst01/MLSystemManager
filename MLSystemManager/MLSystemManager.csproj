@@ -43,6 +43,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Algorithms\AMLP.cs" />
+    <Compile Include="Algorithms\OldNeuralNet.cs" />
     <Compile Include="ArgParser.cs" />
     <Compile Include="Algorithms\BaselineLearner.cs" />
     <Compile Include="Algorithms\BPTT.cs" />

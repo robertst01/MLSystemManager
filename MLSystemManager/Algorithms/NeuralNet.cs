@@ -9,84 +9,90 @@ namespace MLSystemManager.Algorithms
 {
 	public class NeuralNet : SupervisedLearner
 	{
-		private List<List<Node>> m_layers;
-		private Random m_rand;
-		private double m_rate = 0.1;
-		private double m_momentum = 0.9;
-		private string m_activation = "sigmoid";
-		private double m_actAlpha = 0;
-		private double m_actThreshold = 0;
-		private double m_actBeta = 1;
-		private bool m_actRandom = false;
-		private int[] m_hidden = null;
-		private bool m_normalizeOutputs = false;
-		private StreamWriter m_outputFile = null;
+		private readonly List<Layer> _layers;
+		private readonly Random _rand;
+		private readonly double _rate = 0.1;
+		private readonly double _momentum = 0.9;
+		private readonly string _activation = "sigmoid";
+		private int[] _hidden;
+		private StreamWriter _outputFile;
+
+		public enum LayerType
+		{
+			Input,
+			Hidden,
+			Output
+		}
+
+		public class Layer
+		{
+			public LayerType Type { get; set; }
+			public List<Node> Nodes { get; set; }
+			public Layer Previous { get; set; }
+			public Layer Next { get; set; }
+		}
 
 		public class Node
 		{
-			public int index { get; set; }					// the index of this node
-			public double alpha { get; set; }				// relu alpha
-			public double threshold { get; set; }			// relu threshold
-			public double beta { get; set; }				// relu beta
-			public double net { get; set; }					// the net for this node
-			public double output { get; set; }				// the output of this node
-			public double error { get; set; }				// the error for this node
-			public double[] weights { get; set; }			// the weights for all nodes connected to this node
-			public double[] bestWeights { get; set; }		// the best weights so far
-			public double[] deltas { get; set; }			// weight deltas from previous epoch
+			public int Index { get; set; }					// the index of this node
+			public double Net { get; set; }					// the net for this node
+			public double Output { get; set; }				// the output of this node
+			public double Error { get; set; }				// the error for this node
+			public double[] Weights { get; set; }			// the weights for all nodes connected to this node
+			public double[] BestWeights { get; set; }		// the best weights so far
+			public double[] Deltas { get; set; }			// weight deltas from previous epoch
 
 			public Node()
 			{
-				index = 0;
-				threshold = 0;
-				net = 0;
-				output = 0;
-				error = 0;
-				weights = null;
-				bestWeights = null;
-				deltas = null;
+				Index = 0;
+				Net = 0;
+				Output = 0;
+				Error = 0;
+				Weights = null;
+				BestWeights = null;
+				Deltas = null;
 			}
 
 			public Node(int idx, int numWeights, Random rand)
 			{
-				index = idx;
+				Index = idx;
 
 				if (numWeights > 0)
 				{
-					weights = new double[numWeights];
-					bestWeights = new double[numWeights];
+					Weights = new double[numWeights];
+					BestWeights = new double[numWeights];
 					for (var i = 0; i < numWeights; i++)
 					{
-						weights[i] = 0.1 - (rand.NextDouble() * 0.2);
-						bestWeights[i] = weights[i];
+						Weights[i] = 0.1 - (rand.NextDouble() * 0.2);
+						BestWeights[i] = Weights[i];
 					}
 
-					deltas = new double[numWeights];
+					Deltas = new double[numWeights];
 					for (var i = 0; i < numWeights; i++)
 					{
-						deltas[i] = 0;
+						Deltas[i] = 0;
 					}
 				}
 			}
 
 			public void SaveBestWeights()
 			{
-				if (weights != null)
+				if (Weights != null)
 				{
-					for (var i = 0; i < weights.Length; i++)
+					for (var i = 0; i < Weights.Length; i++)
 					{
-						bestWeights[i] = weights[i];
+						BestWeights[i] = Weights[i];
 					}
 				}
 			}
 
 			public void RestoreBestWeights()
 			{
-				if (weights != null)
+				if (Weights != null)
 				{
-					for (var i = 0; i < weights.Length; i++)
+					for (var i = 0; i < Weights.Length; i++)
 					{
-						weights[i] = bestWeights[i];
+						Weights[i] = BestWeights[i];
 					}
 				}
 			}
@@ -94,15 +100,15 @@ namespace MLSystemManager.Algorithms
 
 		public class InputNode : Node
 		{
-			public int feature { get; set; }
-			public double minValue { get; set; }
-			public double maxValue { get; set; }
+			public int Feature { get; set; }
+			public double MinValue { get; set; }
+			public double MaxValue { get; set; }
 			public InputNode(int idx, int feature, double minValue, double maxValue, Random rand)
 				: base(idx, 0, rand)
 			{
-				this.feature = feature;
-				this.minValue = minValue;
-				this.maxValue = maxValue;
+				Feature = feature;
+				MinValue = minValue;
+				MaxValue = maxValue;
 			}
 		}
 
@@ -116,51 +122,32 @@ namespace MLSystemManager.Algorithms
 
 		public class OutputNode : Node
 		{
-			public bool isContinuous { get; set; }			// true if the outout is continuous
-			public int labelCol { get; set; }				// the label column that this output node corresponds to
-			public double labelVal { get; set; }			// the value of the label column that this output node corresponds to
+			public bool IsContinuous { get; set; }			// true if the outout is continuous
+			public int LabelCol { get; set; }				// the label column that this output node corresponds to
+			public double LabelVal { get; set; }			// the value of the label column that this output node corresponds to
 			public OutputNode(int idx, int numWeights, bool isContinuous, int labelCol, double labelVal, Random rand)
 				: base(idx, numWeights, rand)
 			{
-				this.isContinuous = isContinuous;
-				this.labelCol = labelCol;
-				this.labelVal = labelVal;
+				IsContinuous = isContinuous;
+				LabelCol = labelCol;
+				LabelVal = labelVal;
 			}
 		}
 
 		public NeuralNet()
 		{
-			m_rand = new Random();
-			m_layers = new List<List<Node>>();
+			_rand = new Random();
+			_layers = new List<Layer>();
 		}
 
 		public NeuralNet(Parameters parameters)
 		{
-			m_rand = Rand.Get();
-			m_rate = parameters.Rate;
-			m_momentum = parameters.Momentum;
-			m_activation = parameters.Activation;
-			var sa = parameters.ActParameter.Split(',');
-			if (sa.Length > 0)
-			{
-				m_actAlpha = double.Parse(sa[0]);
-			}
-			if (sa.Length > 1)
-			{
-				m_actThreshold = double.Parse(sa[1]);
-			}
-			if (sa.Length > 2)
-			{
-				m_actBeta = double.Parse(sa[2]);
-			}
-			if (sa.Length > 3)
-			{
-				m_actRandom = (sa[3].ToLower() == "r");
-			}
-
-			m_hidden = parameters.Hidden;
-			m_layers = new List<List<Node>>();
-			m_normalizeOutputs = parameters.NormalizeOutputs;
+			_rand = Rand.Get();
+			_rate = parameters.Rate;
+			_momentum = parameters.Momentum;
+			_activation = parameters.Activation;
+			_hidden = parameters.Hidden;
+			_layers = new List<Layer>();
 		}
 
 		public override void Train(Matrix features, Matrix labels, double[] colMin, double[] colMax)
@@ -169,49 +156,51 @@ namespace MLSystemManager.Algorithms
 
 		public override void VTrain(VMatrix features, VMatrix labels, double[] colMin, double[] colMax)
 		{
-			if (m_hidden.Length < 1)
+			if (_hidden.Length < 1)
 			{
-				m_hidden = new[] { features.Cols() * 2 };
+				_hidden = new[] { features.Cols() * 2 };
 			}
 
 			// add the input nodes
 			var iNodes = new List<Node>();
 			for (var i = 0; i < features.Cols(); i++)
 			{
-				iNodes.Add(new InputNode(i, i, colMin[i], colMax[i], m_rand));
+				iNodes.Add(new InputNode(i, i, colMin[i], colMax[i], _rand));
 			}
 
-			m_layers.Add(iNodes);
-			var prevNodes = iNodes.Count + 1;
+			var iLayer = new Layer()
+			{
+				Type = LayerType.Input,
+				Nodes = iNodes,
+				Previous = null,
+				Next = null
+			};
+			_layers.Add(iLayer);
+
+			var prevLayer = iLayer;
 
 			// add the hidden nodes
-			for (var layer = 0; layer < m_hidden.Length; layer++)
+			foreach (var t in _hidden)
 			{
 				var hNodes = new List<Node>();
 
-				for (var n = 0; n < m_hidden[layer]; n++)
+				for (var n = 0; n < t; n++)
 				{
-					var node = new HiddenNode(n, prevNodes, m_rand);
-					if (m_activation == "relu")
-					{
-						if (m_actRandom)
-						{
-							node.alpha = m_actAlpha * m_rand.NextDouble();
-							node.threshold = m_actThreshold * m_rand.NextDouble();
-							node.beta = ((m_actBeta - 1.0) * m_rand.NextDouble()) + 1.0;
-						}
-						else
-						{
-							node.alpha = m_actAlpha;
-							node.threshold = m_actThreshold;
-							node.beta = m_actBeta;
-						}
-					}
+					var node = new HiddenNode(n, prevLayer.Nodes.Count + 1, _rand);
 					hNodes.Add(node);
 				}
 
-				m_layers.Add(hNodes);
-				prevNodes = hNodes.Count + 1;
+				var hLayer = new Layer()
+				{
+					Type = LayerType.Hidden,
+					Nodes = hNodes,
+					Previous = prevLayer,
+					Next = null
+				};
+				_layers.Add(hLayer);
+
+				prevLayer.Next = hLayer;
+				prevLayer = hLayer;
 			}
 
 			// add the output nodes
@@ -223,54 +212,32 @@ namespace MLSystemManager.Algorithms
 				if (labelValueCount < 2)
 				{
 					// continuous
-					var node = new OutputNode(oNodes.Count, prevNodes, true, col, -1, m_rand);
-					if (m_activation == "relu")
-					{
-						if (m_actRandom)
-						{
-							node.alpha = m_actAlpha * m_rand.NextDouble();
-							node.threshold = m_actThreshold * m_rand.NextDouble();
-							node.beta = ((m_actBeta - 1.0) * m_rand.NextDouble()) + 1.0;
-						}
-						else
-						{
-							node.alpha = m_actAlpha;
-							node.threshold = m_actThreshold;
-							node.beta = m_actBeta;
-						}
-					}
+					var node = new OutputNode(oNodes.Count, prevLayer.Nodes.Count + 1, true, col, -1, _rand);
 					oNodes.Add(node);
 				}
 				else
 				{
 					for (var n = 0; n < labelValueCount; n++)
 					{
-						var node = new OutputNode(oNodes.Count, prevNodes, false, col, n, m_rand);
-						if (m_activation == "relu")
-						{
-							if (m_actRandom)
-							{
-								node.alpha = m_actAlpha * m_rand.NextDouble();
-								node.threshold = m_actThreshold * m_rand.NextDouble();
-								node.beta = ((m_actBeta - 1.0) * m_rand.NextDouble()) + 1.0;
-							}
-							else
-							{
-								node.alpha = m_actAlpha;
-								node.threshold = m_actThreshold;
-								node.beta = m_actBeta;
-							}
-						}
+						var node = new OutputNode(oNodes.Count, prevLayer.Nodes.Count + 1, false, col, n, _rand);
 						oNodes.Add(node);
 					}
 				}
 			}
 
-			m_layers.Add(oNodes);
+			var oLayer = new Layer()
+			{
+				Type = LayerType.Output,
+				Nodes = oNodes,
+				Previous = prevLayer
+			};
+			_layers.Add(oLayer);
+
+			prevLayer.Next = oLayer;
 
 			if (!string.IsNullOrEmpty(OutputFileName))
 			{
-				m_outputFile = File.AppendText(OutputFileName);
+				_outputFile = File.AppendText(OutputFileName);
 			}
 
 			var trainSize = (int)(0.75 * features.Rows());
@@ -282,85 +249,83 @@ namespace MLSystemManager.Algorithms
 			Console.Write("Layers: ");
 			Console.Write(iNodes.Count);
 			Console.Write('x');
-			for (var l = 0; l < m_hidden.Length; l++)
+			foreach (var t in _hidden)
 			{
-				Console.Write(m_hidden[l]);
+				Console.Write(t);
 				Console.Write('x');
 			}
 			Console.WriteLine(oNodes.Count);
 			
-			Console.WriteLine("AF: " + m_activation);
-			Console.WriteLine($"AParam: {m_actAlpha},{m_actThreshold},{m_actBeta},{m_actRandom}");
+			Console.WriteLine("AF: " + _activation);
 			
 			Console.WriteLine("Epoch\tMSE (validation)");
-			if (m_outputFile != null)
+			if (_outputFile != null)
 			{
-				m_outputFile.Write("Layers: ");
-				m_outputFile.Write(iNodes.Count);
-				m_outputFile.Write('x');
-				foreach (var t in m_hidden)
+				_outputFile.Write("Layers: ");
+				_outputFile.Write(iNodes.Count);
+				_outputFile.Write('x');
+				foreach (var t in _hidden)
 				{
-					m_outputFile.Write(t);
-					m_outputFile.Write('x');
+					_outputFile.Write(t);
+					_outputFile.Write('x');
 				}
-				m_outputFile.WriteLine(oNodes.Count);
+				_outputFile.WriteLine(oNodes.Count);
 
-				m_outputFile.WriteLine("Momentum: " + m_momentum);
-				m_outputFile.WriteLine("AF: " + m_activation);
-				m_outputFile.WriteLine($"AParam: {m_actAlpha},{m_actThreshold},{m_actBeta},{m_actRandom}");
-				m_outputFile.WriteLine();
-				m_outputFile.WriteLine("Weights");
+				_outputFile.WriteLine("Momentum: " + _momentum);
+				_outputFile.WriteLine("AF: " + _activation);
+				_outputFile.WriteLine("Weights");
 				PrintWeights();
-				m_outputFile.WriteLine("Epoch\tMSE (validation)");
+				_outputFile.WriteLine("Epoch\tMSE (validation)");
 			}
 
-			var epoch = 0;							// current epoch number
+			int epoch;								// current epoch number
 			var bestEpoch = 0;						// epoch number of best MSE
 			var eCount = 0;							// number of epochs since the best MSE
 			var checkDone = false;					// if true, check to see if we're done
-			var initialMSE = double.MaxValue;		// MSE for first epoch
-			var bestMSE = double.MaxValue;			// best validation MSE so far
+			var initialMse = double.MaxValue;		// MSE for first epoch
+			var bestMse = double.MaxValue;			// best validation MSE so far
 
-			for (; ; )
+			for (epoch = 1; ; epoch++)
 			{
 				// shuffle the training set
-				trainFeatures.Shuffle(m_rand, trainLabels);
+				trainFeatures.Shuffle(_rand, trainLabels);
 
-				TrainEpoch(++epoch, trainFeatures, trainLabels);
+				TrainEpoch(trainFeatures, trainLabels);
 
 				// check the MSE after this epoch
 				var mse = VGetMSE(validationFeatures, validationLabels);
 
 				Console.WriteLine($"{epoch}-{eCount}\t{mse}");
-				if (m_outputFile != null)
+				if (_outputFile != null)
 				{
-					m_outputFile.WriteLine($"{epoch}-{eCount}\t{mse}");
-					m_outputFile.Flush();
+					_outputFile.WriteLine($"{epoch}-{eCount}\t{mse}");
+					_outputFile.Flush();
 				}
 
-				if ((mse == 0.0) || (epoch > 5000))
+				if ((mse == 0) || (epoch > 5000))
 				{
 					break;
 				}
-				else if ((epoch == 1) || (mse < bestMSE))
+
+				if ((epoch == 1) || (mse < bestMse))
 				{
 					if (epoch == 1)
 					{
 						// save the initial MSE
-						initialMSE = mse;
+						initialMse = mse;
 					}
-					else if (!checkDone && (mse < initialMSE * 0.9))
+					else if (!checkDone && (mse < initialMse * 0.9))
 					{
 						checkDone = true;
 					}
 					eCount = 0;
 
 					// save the best for later
-					bestMSE = mse;
+					bestMse = mse;
 					bestEpoch = epoch;
-					for (var layer = 1; layer < m_layers.Count; layer++)
+					foreach (var layer in _layers)
 					{
-						foreach (var node in m_layers[layer])
+						foreach (var node in layer.Nodes)
 						{
 							node.SaveBestWeights();
 						}
@@ -377,40 +342,38 @@ namespace MLSystemManager.Algorithms
 				}
 			}
 
-			if (m_outputFile != null)
+			if (_outputFile != null)
 			{
-				m_outputFile.WriteLine();
-				m_outputFile.WriteLine("Weights");
+				_outputFile.WriteLine();
+				_outputFile.WriteLine("Weights");
 				PrintWeights();
 			}
 
 			if ((bestEpoch > 0) && (bestEpoch != epoch))
 			{
-				for (var layer = 1; layer < m_layers.Count; layer++)
+				foreach (var layer in _layers)
 				{
-					foreach (var node in m_layers[layer])
+					foreach (var node in layer.Nodes)
 					{
 						node.RestoreBestWeights();
 					}
 				}
-				if (m_outputFile != null)
+				if (_outputFile != null)
 				{
-					m_outputFile.WriteLine();
-					m_outputFile.WriteLine($"Best Weights (from Epoch {bestEpoch}, valMSE={bestMSE})");
+					_outputFile.WriteLine();
+					_outputFile.WriteLine($"Best Weights (from Epoch {bestEpoch}, valMSE={bestMse})");
 					PrintWeights();
 				}
 			}
 
-			if (m_outputFile != null)
+			if (_outputFile != null)
 			{
-				m_outputFile.Close();
+				_outputFile.Close();
 			}
 		}
 
-		private void TrainEpoch(int epoch, VMatrix features, VMatrix labels)
+		private void TrainEpoch(VMatrix features, VMatrix labels)
 		{
-			var lo = new object();
-
 			Console.Write("TrainEpoch ");
 			var cl = Console.CursorLeft;
 
@@ -423,162 +386,123 @@ namespace MLSystemManager.Algorithms
 				}
 
 				// calculate the output
-				for (var layer = 0; layer < m_layers.Count; layer++)
+				foreach (var layer in _layers)
 				{
-					double outSum = 0;
 #if parallel
-					Parallel.ForEach(m_layers[layer], node =>
+					Parallel.ForEach(layer.Nodes, node =>
 #else
-					foreach (var node in m_layers[layer])
+					foreach (var node in layer.Nodes)
 #endif
 					{
-						node.net = 0;
-						node.output = 0;
-						node.error = 0;
+						node.Net = 0;
+						node.Output = 0;
+						node.Error = 0;
 
-						if (layer == 0)
+						if (layer.Type == LayerType.Input)
 						{
 							// input node
-							node.net = features.Get(row, node.index);
-							node.output = node.net;
+							node.Net = features.Get(row, node.Index);
+							node.Output = node.Net;
 						}
 						else
 						{
 							// calculate the net value
-							for (var w = 0; w < node.weights.Length - 1; w++)
+							for (var w = 0; w < node.Weights.Length - 1; w++)
 							{
-								node.net += node.weights[w] * m_layers[layer - 1][w].output;
+								node.Net += node.Weights[w] * layer.Previous.Nodes[w].Output;
 							}
 							// add the bias
-							node.net += node.weights[node.weights.Length - 1];
+							node.Net += node.Weights[node.Weights.Length - 1];
 
 							// calculate the output
-							if (m_activation == "relu")
+							switch (_activation)
 							{
-								if (node.net <= node.threshold)
-								{
-									node.output = (node.net - node.threshold) * node.alpha;
-								}
-								else
-								{
-									node.output = (node.net - node.threshold) * node.beta;
-								}
+								case "relu":
+									node.Output = node.Net < 0 ? 0.01 * node.Net : node.Net;
+									break;
+								case "softsign":
+									node.Output = (node.Net / (1.0 + Math.Abs(node.Net)));
+									break;
+								case "softplus":
+									node.Output = Math.Log(1.0 + Math.Exp(node.Net));
+									break;
+								default:
+									node.Output = 1.0 / (1.0 + Math.Exp(-node.Net));
+									break;
 							}
-							else if (m_activation == "softsign")
-							{
-								node.output = (node.net / (1.0 + Math.Abs(node.net)));
-							}
-							else if (m_activation == "softplus")
-							{
-								node.output = Math.Log(1.0 + Math.Exp(node.net));
-							}
-							else
-							{
-								node.output = 1.0 / (1.0 + Math.Exp(-node.net));
-							}
-						}
-#if parallel
-						lock (lo)
-#endif
-						{
-							outSum += Math.Abs(node.output);
 						}
 #if parallel
 					});
 #else
 					}
 #endif
-					
-					// normalize the outputs for all layers except the output
-					if (m_normalizeOutputs && (layer < m_layers.Count - 1) && (outSum != 0))
-					{
-#if parallel
-					Parallel.ForEach(m_layers[layer], node =>
-#else
-					foreach (var node in m_layers[layer])
-#endif
-					{
-						node.output /= outSum;
-#if parallel
-					});
-#else
-					}
-#endif
-					}
 				}
 
 				// calculate the error and weight changes
-				for (var layer = m_layers.Count - 1; layer > 0; layer--)
+				for (var i = _layers.Count - 1; i > 0; i--)
 				{
+					var layer = _layers[i];
 #if parallel
-					Parallel.ForEach(m_layers[layer], node =>
+					Parallel.ForEach(layer.Nodes, node =>
 #else
-					foreach (var node in m_layers[layer])
+					foreach (var node in layer.Nodes)
 #endif
 					{
 						double fPrime;
-						if (m_activation == "relu")
+						switch (_activation)
 						{
-							fPrime = (node.output <= node.threshold ? node.alpha : node.beta);
-						}
-						else if (m_activation == "softsign")
-						{
-							fPrime = 1.0 / ((1.0 - Math.Abs(node.output)) * (1.0 - Math.Abs(node.output)));
-						}
-						else if (m_activation == "softplus")
-						{
-							fPrime = 1.0 / (1.0 + Math.Exp(-node.output));
-						}
-						else
-						{
-							fPrime = node.output * (1.0 - node.output);
+							case "relu":
+								fPrime = (node.Output < 0 ? 0.01 : 1);
+								break;
+							case "softsign":
+								fPrime = 1.0 / ((1.0 - Math.Abs(node.Output)) * (1.0 - Math.Abs(node.Output)));
+								break;
+							case "softplus":
+								fPrime = 1.0 / (1.0 + Math.Exp(-node.Output));
+								break;
+							default:
+								fPrime = node.Output * (1.0 - node.Output);
+								break;
 						}
 
-						if (layer == m_layers.Count - 1)
+						if (layer.Type == LayerType.Output)
 						{
 							// output layer
 							var oNode = node as OutputNode;
-							var target = labels.Get(row, oNode.labelCol);
-							if (!oNode.isContinuous)
+							var target = labels.Get(row, oNode.LabelCol);
+							if (!oNode.IsContinuous)
 							{
 								// nominal
-								if (target == oNode.labelVal)
-								{
-									target = 0.9;
-								}
-								else
-								{
-									target = 0.1;
-								}
+								target = target == oNode.LabelVal ? 0.99 : 0.01;
 							}
 
-							var error = target - node.output;
-							node.error = error * fPrime;
+							var error = target - node.Output;
+							node.Error = error * fPrime;
 						}
 						else
 						{
 							// hidden layer
 							double sum = 0;
-							foreach (var tn in m_layers[layer + 1])
+							foreach (var tn in layer.Next.Nodes)
 							{
-								sum += tn.error * tn.weights[node.index];
+								sum += tn.Error * tn.Weights[node.Index];
 							}
-							node.error = sum * fPrime;
+							node.Error = sum * fPrime;
 						}
 
 						// calculate the weight changes
 						double delta;
-						for (var w = 0; w < node.weights.Length - 1; w++)
+						for (var w = 0; w < node.Weights.Length - 1; w++)
 						{
-							delta = m_rate * node.error * m_layers[layer - 1][w].output;
-							delta += m_momentum * node.deltas[w];
-							node.deltas[w] = delta;
+							delta = _rate * node.Error * layer.Previous.Nodes[w].Output;
+							delta += _momentum * node.Deltas[w];
+							node.Deltas[w] = delta;
 						}
 
 						// calculate the bias weight change
-						delta = m_rate * node.error;
-						delta += m_momentum * node.deltas[node.weights.Length - 1];
-						node.deltas[node.weights.Length - 1] = delta;
+						delta = _rate * node.Error;
+						delta += _momentum * node.Deltas[node.Weights.Length - 1];
+						node.Deltas[node.Weights.Length - 1] = delta;
 #if parallel
 					});
 #else
@@ -587,23 +511,26 @@ namespace MLSystemManager.Algorithms
 				}
 
 				// update the weights
-				for (var layer = 1; layer < m_layers.Count; layer++)
+				foreach (var layer in _layers)
 				{
-#if parallel
-					Parallel.ForEach(m_layers[layer], node =>
-#else
-					foreach (var node in m_layers[layer])
-#endif
+					if (layer.Type != LayerType.Input)
 					{
-						for (var w = 0; w < node.weights.Length; w++)
-						{
-							node.weights[w] += node.deltas[w];
-						}
 #if parallel
-					});
+						Parallel.ForEach(layer.Nodes, node =>
 #else
-					}
+						foreach (var node in layer.Nodes)
 #endif
+						{
+							for (var w = 0; w < node.Weights.Length; w++)
+							{
+								node.Weights[w] += node.Deltas[w];
+							}
+#if parallel
+						});
+#else
+						}
+#endif
+					}
 				}
 			}
 
@@ -619,7 +546,6 @@ namespace MLSystemManager.Algorithms
 		// Calculate the MSE
 		public override double VGetMSE(VMatrix features, VMatrix labels)
 		{
-			var lo = new object();
 			double sse = 0;
 
 			Console.Write("VGetMSE ");
@@ -634,108 +560,74 @@ namespace MLSystemManager.Algorithms
 				}
 
 				// calculate the output
-				for (var layer = 0; layer < m_layers.Count; layer++)
+				foreach (var layer in _layers)
 				{
-					double outSum = 0;
-
 #if parallel
-					Parallel.ForEach(m_layers[layer], node =>
+					Parallel.ForEach(layer.Nodes, node =>
 #else
-					foreach (var node in m_layers[layer])
+					foreach (var node in layer.Nodes)
 #endif
 					{
-						node.net = 0;
-						node.output = 0;
+						node.Net = 0;
+						node.Output = 0;
 
-						if (layer == 0)
+						if (layer.Type == LayerType.Input)
 						{
 							// input node
-							node.output = features.Get(row, node.index);
+							node.Output = features.Get(row, node.Index);
 						}
 						else
 						{
 							// calculate the net value
-							for (var w = 0; w < node.weights.Length - 1; w++)
+							for (var w = 0; w < node.Weights.Length - 1; w++)
 							{
-								node.net += node.weights[w] * m_layers[layer - 1][w].output;
+								node.Net += node.Weights[w] * layer.Previous.Nodes[w].Output;
 							}
 							// add the bias
-							node.net += node.weights[node.weights.Length - 1];
+							node.Net += node.Weights[node.Weights.Length - 1];
 
 							// calculate the output
-							if (m_activation == "relu")
+							switch (_activation)
 							{
-								if (node.net <= node.threshold)
-								{
-									node.output = (node.net - node.threshold) * node.alpha;
-								}
-								else
-								{
-									node.output = (node.net - node.threshold) * node.beta;
-								}
+								case "relu":
+									node.Output = node.Net < 0 ? 0.01 * node.Net : node.Net;
+									break;
+								case "softsign":
+									node.Output = (node.Net / (1.0 + Math.Abs(node.Net)));
+									break;
+								case "softplus":
+									node.Output = Math.Log(1.0 + Math.Exp(node.Net));
+									break;
+								default:
+									node.Output = 1.0 / (1.0 + Math.Exp(-node.Net));
+									break;
 							}
-							else if (m_activation == "softsign")
-							{
-								node.output = (node.net / (1.0 + Math.Abs(node.net)));
-							}
-							else if (m_activation == "softplus")
-							{
-								node.output = Math.Log(1.0 + Math.Exp(node.net));
-							}
-							else
-							{
-								node.output = 1.0 / (1.0 + Math.Exp(-node.net));
-							}
-						}
-
-#if parallel
-						lock (lo)
-#endif
-						{
-							outSum += Math.Abs(node.output);
 						}
 #if parallel
 					});
 #else
 					}
 #endif
-
-					// normalize the outputs for all layers except the output
-					if (m_normalizeOutputs && (layer < m_layers.Count - 1) && (outSum != 0))
-					{
-#if parallel
-						Parallel.ForEach(m_layers[layer], node =>
-#else
-						foreach (var node in m_layers[layer])
-#endif
-						{
-							node.output /= outSum;
-#if parallel
-						});
-#else
-						}
-#endif
-					}
 				}
 
 				// calculate the error of the output layer
-				foreach (var node in m_layers[m_layers.Count - 1])
+				foreach (var node in _layers[_layers.Count - 1].Nodes)
 				{
 					var oNode = node as OutputNode;
-					var target = labels.Get(row, oNode.labelCol);
-					if (!oNode.isContinuous)
+					var target = labels.Get(row, oNode.LabelCol);
+					if (!oNode.IsContinuous)
 					{
 						// nominal
-						if (target == oNode.labelVal)
+						if (target == oNode.LabelVal)
 						{
-							target = 0.9;
+							target = 0.99;
 						}
 						else
 						{
-							target = 0.1;
+							target = 0.01;
 						}
 					}
-					var error = target - node.output;
+					var error = target - node.Output;
 
 					// update the error
 					sse += error * error;
@@ -749,74 +641,68 @@ namespace MLSystemManager.Algorithms
 
 		private void PrintWeights()
 		{
-			for (var layer = 1; layer < m_layers.Count; layer++)
+			foreach (var layer in _layers)
 			{
-				m_outputFile.WriteLine("Layer " + layer);
-				foreach (var node in m_layers[layer])
+				if (layer.Type == LayerType.Input)
 				{
-					for (var w = 0; w < node.weights.Length - 1; w++)
+					continue;
+				}
+				_outputFile.WriteLine("Layer " + _layers.IndexOf(layer));
+				foreach (var node in layer.Nodes)
+				{
+					for (var w = 0; w < node.Weights.Length - 1; w++)
 					{
-						m_outputFile.Write($"{node.weights[w]}\t");
+						_outputFile.Write($"{node.Weights[w]}\t");
 					}
-					m_outputFile.WriteLine(node.weights[node.weights.Length - 1]);
+					_outputFile.WriteLine(node.Weights[node.Weights.Length - 1]);
 				}
 			}
-			m_outputFile.WriteLine();
-			m_outputFile.Flush();
+			_outputFile.WriteLine();
+			_outputFile.Flush();
 		}
 
 		public override void Predict(double[] features, double[] labels)
 		{
-			for (var layer = 0; layer < m_layers.Count; layer++)
+			foreach (var layer in _layers)
 			{
-				double outSum = 0;
-
 #if parallel
-				Parallel.ForEach(m_layers[layer], node =>
+				Parallel.ForEach(layer.Nodes, node =>
 #else
-				foreach (var node in m_layers[layer])
+				foreach (var node in layer.Nodes)
 #endif
 				{
-					node.net = 0;
-					node.output = 0;
+					node.Net = 0;
+					node.Output = 0;
 
-					if (layer == 0)
+					if (layer.Type == LayerType.Input)
 					{
 						// input node
-						node.output = features[node.index];
+						node.Output = features[node.Index];
 					}
 					else
 					{
 						// calculate the net value
-						for (var w = 0; w < node.weights.Length - 1; w++)
+						for (var w = 0; w < node.Weights.Length - 1; w++)
 						{
-							node.net += node.weights[w] * m_layers[layer - 1][w].output;
+							node.Net += node.Weights[w] * layer.Previous.Nodes[w].Output;
 						}
 						// add the bias
-						node.net += node.weights[node.weights.Length - 1];
+						node.Net += node.Weights[node.Weights.Length - 1];
 
-						if (m_activation == "relu")
+						switch (_activation)
 						{
-							if (node.net <= node.threshold)
-							{
-								node.output = (node.net - node.threshold) * node.alpha;
-							}
-							else
-							{
-								node.output = (node.net - node.threshold) * node.beta;
-							}
-						}
-						else if (m_activation == "softsign")
-						{
-							node.output = (node.net / (1.0 + Math.Abs(node.net)));
-						}
-						else if (m_activation == "softplus")
-						{
-							node.output = Math.Log(1.0 + Math.Exp(node.net));
-						}
-						else
-						{
-							node.output = 1.0 / (1.0 + Math.Exp(-node.net));
+							case "relu":
+								node.Output = node.Net < 0 ? 0.01 * node.Net : node.Net;
+								break;
+							case "softsign":
+								node.Output = (node.Net / (1.0 + Math.Abs(node.Net)));
+								break;
+							case "softplus":
+								node.Output = Math.Log(1.0 + Math.Exp(node.Net));
+								break;
+							default:
+								node.Output = 1.0 / (1.0 + Math.Exp(-node.Net));
+								break;
 						}
 					}
 #if parallel
@@ -824,52 +710,37 @@ namespace MLSystemManager.Algorithms
 #else
 				}
 #endif
-
-				// normalize the outputs for all layers except the output
-				if (m_normalizeOutputs && (layer < m_layers.Count - 1) && (outSum != 0))
-				{
-#if parallel
-					Parallel.ForEach(m_layers[layer], node =>
-#else
-					foreach (var node in m_layers[layer])
-#endif
-					{
-						node.output /= outSum;
-#if parallel
-					});
-#else
-					}
-#endif
-				}
 			}
 
 			var labelIdx = 0;
-			for (var n = 0; n < m_layers[m_layers.Count - 1].Count; n++)
+			var outputLayer = _layers[_layers.Count - 1];
+			for (var n = 0; n < outputLayer.Nodes.Count; n++)
 			{
-				var oNode = m_layers[m_layers.Count - 1][n] as OutputNode;
+				var oNode = outputLayer.Nodes[n] as OutputNode;
 
-				if (oNode.isContinuous)
+				if (oNode.IsContinuous)
 				{
-					labels[labelIdx++] = oNode.output;
+					labels[labelIdx++] = oNode.Output;
 				}
 				else
 				{
 					// find the max output for this labelCol
-					var max = oNode.output;
-					var labelCol = oNode.labelCol;
-					var labelVal = oNode.labelVal;
+					var max = oNode.Output;
+					var labelCol = oNode.LabelCol;
+					var labelVal = oNode.LabelVal;
 					int nIdx;
-					for (nIdx = 1; nIdx + n < m_layers[m_layers.Count - 1].Count; nIdx++)
+					for (nIdx = 1; nIdx + n < outputLayer.Nodes.Count; nIdx++)
 					{
-						var tn = m_layers[m_layers.Count - 1][n + nIdx] as OutputNode;
-						if (tn.labelCol != labelCol)
+						var tn = outputLayer.Nodes[n + nIdx] as OutputNode;
+						if (tn.LabelCol != labelCol)
 						{
 							break;
 						}
-						else if (tn.output > max)
+
+						if (tn.Output > max)
 						{
-							max = tn.output;
-							labelVal = tn.labelVal;
+							max = tn.Output;
+							labelVal = tn.LabelVal;
 						}
 					}
 					labels[labelIdx++] = labelVal;
