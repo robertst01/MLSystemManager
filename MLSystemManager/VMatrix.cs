@@ -27,7 +27,7 @@ namespace MLSystemManager
 			m_colStart = colStart;
 			m_colCount = colCount;
 			m_rowData = new int[rowCount];
-			for (int i = 0; i < rowCount; i++)
+			for (var i = 0; i < rowCount; i++)
 			{
 				m_rowData[i] = i + rowStart;
 			}
@@ -40,7 +40,7 @@ namespace MLSystemManager
 			m_colStart = colStart + matrix.m_colStart;
 			m_colCount = colCount;
 			m_rowData = new int[rowCount];
-			for (int i = 0; i < rowCount; i++)
+			for (var i = 0; i < rowCount; i++)
 			{
 				m_rowData[i] = matrix.m_rowData[i + rowStart];
 			}
@@ -83,10 +83,10 @@ namespace MLSystemManager
 		// Shuffles the row order
 		public void Shuffle(Random rand)
 		{
-			for (int n = Rows(); n > 0; n--)
+			for (var n = Rows(); n > 0; n--)
 			{
-				int i = rand.Next(n);
-				int tmp = m_rowData[n - 1];
+				var i = rand.Next(n);
+				var tmp = m_rowData[n - 1];
 				m_rowData[n - 1] = m_rowData[i];
 				m_rowData[i] = tmp;
 			}
@@ -95,16 +95,16 @@ namespace MLSystemManager
 		// Shuffles the row order with a buddy matrix 
 		public void Shuffle(Random rand, VMatrix buddy)
 		{
-			for (int n = Rows(); n > 0; n--)
+			for (var n = Rows(); n > 0; n--)
 			{
-				int i = rand.Next(n);
-				int tmp = m_rowData[n - 1];
+				var i = rand.Next(n);
+				var tmp = m_rowData[n - 1];
 				m_rowData[n - 1] = m_rowData[i];
 				m_rowData[i] = tmp;
 
 				if (buddy != null)
 				{
-					int tmp1 = buddy.RowData()[n - 1];
+					var tmp1 = buddy.RowData()[n - 1];
 					buddy.RowData()[n - 1] = buddy.RowData()[i];
 					buddy.RowData()[i] = tmp1;
 				}
