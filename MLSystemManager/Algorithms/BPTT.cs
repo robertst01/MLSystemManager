@@ -159,166 +159,6 @@ namespace MLSystemManager.Algorithms
 			m_layers = new List<List<Node>>();
 		}
 
-		public bool LoadWeights()
-		{
-			List<double[]> weights = null;
-
-			if (!string.IsNullOrEmpty(WeightsFileName) && File.Exists(WeightsFileName))
-			{
-				weights = new List<double[]>();
-				int prevNodeCount = 0;
-				string[] nodeCounts = null;
-				List<Node> iNodes = new List<Node>();
-
-				using (StreamReader file = new StreamReader(WeightsFileName))
-				{
-					for (; ; )
-					{
-						// read the nodes info
-						String line = file.ReadLine();
-						if (!string.IsNullOrEmpty(line) && !line.StartsWith("%"))
-						{
-							// parse the nodes array
-							nodeCounts = line.Split(',');
-
-							// fix the hidden node counts
-							m_hidden = nodeCounts.Length - 2;
-
-							break;
-						}
-					}
-
-					int inputCount = int.Parse(nodeCounts[0].Trim());
-					for (; ; )
-					{
-						// read the input node params
-						String line = file.ReadLine();
-						if (!string.IsNullOrEmpty(line) && !line.StartsWith("%"))
-						{
-							var inputs = line.Split(',');
-							var node = new InputNode(int.Parse(inputs[0].Trim()), int.Parse(inputs[1].Trim()), double.Parse(inputs[2].Trim()), double.Parse(inputs[3].Trim()), m_rand);
-							iNodes.Add(node);
-
-							if (iNodes.Count >= inputCount)
-							{
-								break;
-							}
-						}
-					}
-
-					int outputCount = int.Parse(nodeCounts[nodeCounts.Length - 1].Trim());
-					m_outputLabels = new List<OutputLabel>();
-					for (; ; )
-					{
-						// read the output node params
-						String line = file.ReadLine();
-						if (!string.IsNullOrEmpty(line) && !line.StartsWith("%"))
-						{
-							var outputs = line.Split(',');
-							var label = new OutputLabel(int.Parse(outputs[0].Trim()), int.Parse(outputs[1].Trim()), double.Parse(outputs[2].Trim()));
-							m_outputLabels.Add(label);
-
-							if (m_outputLabels.Count >= outputCount)
-							{
-								break;
-							}
-						}
-					}
-
-					// read the weights
-					for (int layer = 0; layer < nodeCounts.Length; layer++)
-					{
-						if (layer == 0)
-						{
-							// input layer
-							prevNodeCount = int.Parse(nodeCounts[layer].Trim()) + 1;
-						}
-						else
-						{
-							int nodes = int.Parse(nodeCounts[layer].Trim());
-							for (int n = 0; n < nodes; n++)
-							{
-								double[] w = new double[prevNodeCount];
-								var line = file.ReadLine();
-								if (!string.IsNullOrEmpty(line) && !line.StartsWith("%"))
-								{
-									string[] ws = line.Split(',');
-									if (ws.Length != prevNodeCount)
-									{
-										Console.WriteLine(string.Format("Incorrect weight count (layer {0}, node {1}, count {2}", layer, n, ws.Length));
-										Environment.Exit(0);
-									}
-									for (int i = 0; i < ws.Length; i++)
-									{
-										w[i] = double.Parse(ws[i]);
-									}
-
-									weights.Add(w);
-								}
-								else
-								{
-									n--;
-								}
-							}
-
-							if (layer < nodeCounts.Length - 1)
-							{
-								// hidden layer
-								m_hidden = nodes;
-							}
-
-							prevNodeCount = nodes + 1;
-						}
-					}
-				}
-
-				if (weights.Count > 0)
-				{
-					m_weights = weights;
-
-					m_layers = new List<List<Node>>();
-					int prevNodes = int.Parse(nodeCounts[0].Trim()) + 1;
-					int wIdx = 0;							// index into the weights array
-
-					// add the input nodes
-					m_layers.Add(iNodes);
-					m_inputs = iNodes.Count;
-
-					// add the hidden nodes
-					List<Node> hNodes = new List<Node>();
-
-					for (var n = 0; n < m_hidden; n++)
-					{
-						hNodes.Add(new HiddenNode(prevNodes, m_rand, m_weights[wIdx++]));
-					}
-
-					prevNodes = hNodes.Count + 1;
-					m_layers.Add(hNodes);
-
-					// add the output layer
-					List<Node> oNodes = new List<Node>();
-					for (var n = 0; n < m_outputLabels.Count; n++)
-					{
-						var labelValueCount = m_outputLabels[n].valueCount;
-
-						if (labelValueCount < 2)
-						{
-							// continuous
-							oNodes.Add(new OutputNode(prevNodes, true, n, -1, m_rand, m_weights[wIdx++]));
-						}
-						else
-						{
-							oNodes.Add(new OutputNode(prevNodes, false, m_outputLabels[n].label, m_outputLabels[n].value, m_rand, m_weights[wIdx++]));
-						}
-					}
-
-					m_layers.Add(oNodes);
-				}
-			}
-
-			return (weights != null) && (weights.Count > 0);
-		}
-
 		public override void Train(Matrix features, Matrix labels, double[] colMin, double[] colMax)
 		{
 		}
@@ -335,119 +175,110 @@ namespace MLSystemManager.Algorithms
 				m_k = 2;
 			}
 
-			var weightsLoaded = LoadWeights();
-			if (!weightsLoaded)
+			// add the input nodes
+			var iNodes = new List<Node>();
+			m_inputs = features.Cols();
+			for (var i = 0; i < m_inputs; i++)
 			{
-				// add the input nodes
-				List<Node> iNodes = new List<Node>();
-				m_inputs = features.Cols();
-				for (var i = 0; i < m_inputs; i++)
-				{
-					iNodes.Add(new InputNode(i, 0, colMin[i], colMax[i], m_rand));
-				}
+				iNodes.Add(new InputNode(i, 0, colMin[i], colMax[i], m_rand));
+			}
 				
-				// add the pseudo-hidden nodes
+			// add the pseudo-hidden nodes
+			for (var n = 0; n < m_hidden; n++)
+			{
+				iNodes.Add(new HiddenNode(0, m_rand, null));
+			}
+
+			m_layers.Add(iNodes);
+
+			var prevNodes = iNodes.Count + 1;
+			var wIdx = 0;							// index into the weights array
+
+			for (var k = 0; k < m_k; k++)
+			{
+				// add the nodes for this layer
+				var hNodes = new List<Node>();
+
+				if (k < m_k - 1)
+				{
+					// add the input nodes
+					for (var i = 0; i < m_inputs; i++)
+					{
+						hNodes.Add(new InputNode(i, 0, colMin[i], colMax[i], m_rand));
+					}
+				}
+
+				// add the hidden nodes
 				for (var n = 0; n < m_hidden; n++)
 				{
-					iNodes.Add(new HiddenNode(0, m_rand, null));
-				}
-
-				m_layers.Add(iNodes);
-
-				int prevNodes = iNodes.Count + 1;
-				int wIdx = 0;							// index into the weights array
-
-				for (int k = 0; k < m_k; k++)
-				{
-					// add the nodes for this layer
-					List<Node> hNodes = new List<Node>();
-
-					if (k < m_k - 1)
+					if (m_weights != null)
 					{
-						// add the input nodes
-						for (var i = 0; i < m_inputs; i++)
-						{
-							hNodes.Add(new InputNode(i, 0, colMin[i], colMax[i], m_rand));
-						}
-					}
-
-					// add the hidden nodes
-					for (var n = 0; n < m_hidden; n++)
-					{
-						if (m_weights != null)
-						{
-							hNodes.Add(new HiddenNode(prevNodes, m_rand, m_weights[wIdx++]));
-						}
-						else
-						{
-							hNodes.Add(new HiddenNode(prevNodes, m_rand, null));
-						}
-					}
-
-					prevNodes = hNodes.Count + 1;
-					m_layers.Add(hNodes);
-				}
-
-				// add the output nodes - figure out how many outputs we need
-				List<Node> oNodes = new List<Node>();
-				for (var col = 0; col < labels.Cols(); col++)
-				{
-					var labelValueCount = labels.ValueCount(col);
-
-					if (labelValueCount < 2)
-					{
-						// continuous
-						if (m_weights != null)
-						{
-							oNodes.Add(new OutputNode(prevNodes, true, col, -1, m_rand, m_weights[wIdx++]));
-						}
-						else
-						{
-							oNodes.Add(new OutputNode(prevNodes, true, col, -1, m_rand, null));
-						}
+						hNodes.Add(new HiddenNode(prevNodes, m_rand, m_weights[wIdx++]));
 					}
 					else
 					{
-						for (var n = 0; n < labelValueCount; n++)
-						{
-							if (m_weights != null)
-							{
-								oNodes.Add(new OutputNode(prevNodes, false, col, n, m_rand, m_weights[wIdx++]));
-							}
-							else
-							{
-								oNodes.Add(new OutputNode(prevNodes, false, col, n, m_rand, null));
-							}
-						}
+						hNodes.Add(new HiddenNode(prevNodes, m_rand, null));
 					}
 				}
 
-				m_layers.Add(oNodes);
-				
-				CopyWeights();
+				prevNodes = hNodes.Count + 1;
+				m_layers.Add(hNodes);
 			}
+
+			// add the output nodes - figure out how many outputs we need
+			var oNodes = new List<Node>();
+			for (var col = 0; col < labels.Cols(); col++)
+			{
+				var labelValueCount = labels.ValueCount(col);
+
+				if (labelValueCount < 2)
+				{
+					// continuous
+					if (m_weights != null)
+					{
+						oNodes.Add(new OutputNode(prevNodes, true, col, -1, m_rand, m_weights[wIdx++]));
+					}
+					else
+					{
+						oNodes.Add(new OutputNode(prevNodes, true, col, -1, m_rand, null));
+					}
+				}
+				else
+				{
+					for (var n = 0; n < labelValueCount; n++)
+					{
+						if (m_weights != null)
+						{
+							oNodes.Add(new OutputNode(prevNodes, false, col, n, m_rand, m_weights[wIdx++]));
+						}
+						else
+						{
+							oNodes.Add(new OutputNode(prevNodes, false, col, n, m_rand, null));
+						}
+					}
+				}
+			}
+
+			m_layers.Add(oNodes);
+				
+			CopyWeights();
 
 			InitNodes();
 
-			if (!string.IsNullOrEmpty(OutputFileName))
-			{
-				m_outputFile = File.AppendText(OutputFileName);
-			}
+			var trainSize = (int)(0.75 * features.Rows());
+			var trainFeatures = new VMatrix(features, 0, 0, trainSize, features.Cols());
+			var trainLabels = new VMatrix(labels, 0, 0, trainSize, labels.Cols());
+			var validationFeatures = new VMatrix(features, trainSize, 0, features.Rows() - trainSize, features.Cols());
+			var validationLabels = new VMatrix(labels, trainSize, 0, labels.Rows() - trainSize, labels.Cols());
 
-			int trainSize = (int)(0.75 * features.Rows());
-			VMatrix trainFeatures = new VMatrix(features, 0, 0, trainSize, features.Cols());
-			VMatrix trainLabels = new VMatrix(labels, 0, 0, trainSize, labels.Cols());
-			VMatrix validationFeatures = new VMatrix(features, trainSize, 0, features.Rows() - trainSize, features.Cols());
-			VMatrix validationLabels = new VMatrix(labels, trainSize, 0, labels.Rows() - trainSize, labels.Cols());
-
-			int epoch = 0;							// current epoch number
-			double bestTrainMSE = double.MaxValue;	// best training MSE so far
-			double bestMSE = double.MaxValue;		// best validation MSE so far
-			double bestAccuracy = double.MaxValue;	// best validationa accuracy so far
+			var epoch = 0;							// current epoch number
+			var bestTrainMSE = double.MaxValue;	// best training MSE so far
+			var bestMSE = double.MaxValue;		// best validation MSE so far
+			var bestAccuracy = double.MaxValue;	// best validationa accuracy so far
 			double firstMse = 0;					// first MSE
-			int eCount = 0;							// number of epochs less than firstMSE / 1000
-			int bestEpoch = 0;						// epoch number of best MSE
-			bool done = false;
+			var eCount = 0;							// number of epochs less than firstMSE / 1000
+			var bestEpoch = 0;						// epoch number of best MSE
+			var done = false;
 
 			Console.WriteLine("Epoch\tMSE (training)\t\tMSE (validation)\taccuracy (validation)");
 			if (m_outputFile != null)
@@ -476,10 +307,10 @@ namespace MLSystemManager.Algorithms
 				}
 
 				// check the MSE after this epoch
-				double mse = VGetMSE(validationFeatures, validationLabels);
+				var mse = VGetMSE(validationFeatures, validationLabels);
 
 				// check the validation accuracy after this epoch
-				double accuracy = VMeasureAccuracy(validationFeatures, validationLabels, null);
+				var accuracy = VMeasureAccuracy(validationFeatures, validationLabels, null);
 
 				Console.WriteLine(string.Format("{0}\t{1}\t{2}\t{3}", epoch, trainMSE, mse, accuracy));
 				if (m_outputFile != null)
@@ -567,76 +398,13 @@ namespace MLSystemManager.Algorithms
 			{
 				m_outputFile.Close();
 			}
-
-			// save the weights
-			if (!weightsLoaded && !string.IsNullOrEmpty(WeightsFileName))
-			{
-				using (StreamWriter wf = new StreamWriter(WeightsFileName))
-				{
-					// write the node count
-					wf.Write("% #input nodes, ");
-					for (var layer = 0; layer < m_layers.Count - 1; layer++)
-					{
-						wf.Write(string.Format("#hidden{0} nodes, ", layer + 1));
-					}
-					wf.WriteLine("#output nodes");
-					for (var layer = 0; layer < m_layers.Count; layer++)
-					{
-						if (layer == 0)
-						{
-							// write the input node count
-							wf.Write(m_layers[0][0].weights.Length - 1);
-						}
-						wf.Write(string.Format(",{0}", m_layers[layer].Count));
-					}
-					wf.WriteLine();
-					wf.WriteLine();
-
-					// write the input params
-					wf.WriteLine("% feature, valueCount, min value, max value");
-					for (var col = 0; col < trainFeatures.Cols(); col++)
-					{
-						wf.WriteLine(string.Format("{0},{1},{2},{3}", col, trainFeatures.ValueCount(col), colMin[col], colMax[col]));
-					}
-					wf.WriteLine();
-
-					// write the output params
-					wf.WriteLine("% label, valueCount, value");
-					foreach (OutputNode node in m_layers[m_layers.Count - 1])
-					{
-						wf.WriteLine(string.Format("{0},{1},{2}", node.labelCol, labels.ValueCount(node.labelCol), node.labelVal));
-					}
-
-					// write the weights
-					for (var layer = 0; layer < m_layers.Count; layer++)
-					{
-						wf.WriteLine();
-						if (layer < m_layers.Count - 1)
-						{
-							wf.WriteLine(string.Format("% hidden{0} weights", layer + 1));
-						}
-						else
-						{
-							wf.WriteLine("% output weights");
-						}
-						foreach (var node in m_layers[layer])
-						{
-							for (var w = 0; w < node.weights.Length - 1; w++)
-							{
-								wf.Write(string.Format("{0},", node.weights[w]));
-							}
-							wf.WriteLine(node.weights[node.weights.Length - 1]);
-						}
-					}
-				}
-			}
 		}
 
 		private void InitNodes()
 		{
 			for (var layer = 0; layer < m_layers.Count - 1; layer++)
 			{
-				for (int idx = 0; idx < m_layers[layer].Count; idx++)
+				for (var idx = 0; idx < m_layers[layer].Count; idx++)
 				{
 					m_layers[layer][idx].index = idx;
 				}
@@ -680,7 +448,7 @@ namespace MLSystemManager.Algorithms
 		{
 			for (var layer = 2; layer <= m_k; layer++)
 			{
-				for (int idx = 0; idx < m_hidden; idx++)
+				for (var idx = 0; idx < m_hidden; idx++)
 				{
 					HiddenNode node;
 					if (layer < m_k)
@@ -691,8 +459,8 @@ namespace MLSystemManager.Algorithms
 					{
 						node = m_layers[layer][idx] as HiddenNode;
 					}
-					HiddenNode sNode = m_layers[1][idx + m_inputs] as HiddenNode;
-					for (int w = 0; w < sNode.weights.Length; w++)
+					var sNode = m_layers[1][idx + m_inputs] as HiddenNode;
+					for (var w = 0; w < sNode.weights.Length; w++)
 					{
 						node.weights[w] = sNode.weights[w];
 					}
@@ -703,10 +471,10 @@ namespace MLSystemManager.Algorithms
 		private double TrainEpoch(int epoch, VMatrix features, VMatrix labels)
 		{
 			double sse = 0;
-			object lo = new object();
-			int cl = 0;
+			var lo = new object();
+			var cl = 0;
 
-			if (Verbose)
+			if (Parameters.Verbose)
 			{
 				Console.Write("TrainEpoch ");
 				cl = Console.CursorLeft;
@@ -714,15 +482,15 @@ namespace MLSystemManager.Algorithms
 
 			for (var rowCount = 1; rowCount <= features.Rows(); rowCount++)
 			{
-				if (Verbose)
+				if (Parameters.Verbose)
 				{
 					Console.SetCursorPosition(cl, Console.CursorTop);
 					Console.Write(rowCount);
 				}
 
-				int row = m_rand.Next(features.Rows() - m_k + 1) + m_k - 1;
+				var row = m_rand.Next(features.Rows() - m_k + 1) + m_k - 1;
 
-				for (int r = row - m_k + 1; r <= row; r++)
+				for (var r = row - m_k + 1; r <= row; r++)
 				{
 					SetInputs(features, r);
 				}
@@ -760,12 +528,12 @@ namespace MLSystemManager.Algorithms
 					{
 						if (!(node is InputNode))
 						{
-							double fPrime = node.output * (1.0 - node.output);
+							var fPrime = node.output * (1.0 - node.output);
 							if (node is OutputNode)
 							{
 								// output layer
-								OutputNode oNode = node as OutputNode;
-								double target = labels.Get(row, oNode.labelCol);
+								var oNode = node as OutputNode;
+								var target = labels.Get(row, oNode.labelCol);
 								if (!oNode.isContinuous)
 								{
 									// nominal
@@ -818,7 +586,7 @@ namespace MLSystemManager.Algorithms
 				// update the weights
 				for (var layer = 1; layer < m_layers.Count; layer++)
 				{
-					int idx = m_inputs;
+					var idx = m_inputs;
 					foreach (var node in m_layers[layer])
 					{
 						if (node is OutputNode)
@@ -830,7 +598,7 @@ namespace MLSystemManager.Algorithms
 						}
 						else if (node is HiddenNode)
 						{
-							HiddenNode dNode = m_layers[1][idx++] as HiddenNode;
+							var dNode = m_layers[1][idx++] as HiddenNode;
 							for (var w = 0; w < node.weights.Length; w++)
 							{
 								dNode.weights[w] += node.deltas[w];
@@ -842,7 +610,7 @@ namespace MLSystemManager.Algorithms
 				CopyWeights();
 			}
 
-			if (Verbose)
+			if (Parameters.Verbose)
 			{
 				Console.WriteLine();
 			}
@@ -860,9 +628,9 @@ namespace MLSystemManager.Algorithms
 		public override double VGetMSE(VMatrix features, VMatrix labels)
 		{
 			double sse = 0;
-			int cl = 0;
+			var cl = 0;
 
-			if (Verbose)
+			if (Parameters.Verbose)
 			{
 				Console.Write("VGetMSE ");
 				cl = Console.CursorLeft;
@@ -870,7 +638,7 @@ namespace MLSystemManager.Algorithms
 
 			for (var row = 0; row < features.Rows(); row++)
 			{
-				if (Verbose)
+				if (Parameters.Verbose)
 				{
 					Console.SetCursorPosition(cl, Console.CursorTop);
 					Console.Write(row);
@@ -906,7 +674,7 @@ namespace MLSystemManager.Algorithms
 					// calculate the error of the output layer
 					foreach (OutputNode node in m_layers[m_layers.Count - 1])
 					{
-						double target = labels.Get(row, node.labelCol);
+						var target = labels.Get(row, node.labelCol);
 						if (!node.isContinuous)
 						{
 							// nominal
@@ -927,7 +695,7 @@ namespace MLSystemManager.Algorithms
 				}
 			}
 
-			if (Verbose)
+			if (Parameters.Verbose)
 			{
 				Console.WriteLine();
 			}
@@ -981,10 +749,10 @@ namespace MLSystemManager.Algorithms
 				});
 			}
 
-			int labelIdx = 0;
+			var labelIdx = 0;
 			for (var n = 0; n < m_layers[m_layers.Count - 1].Count; n++)
 			{
-				OutputNode node = m_layers[m_layers.Count - 1][n] as OutputNode;
+				var node = m_layers[m_layers.Count - 1][n] as OutputNode;
 
 				if (node.isContinuous)
 				{
@@ -993,13 +761,13 @@ namespace MLSystemManager.Algorithms
 				else
 				{
 					// find the max output for this labelCol
-					double max = node.output;
+					var max = node.output;
 					var labelCol = node.labelCol;
-					double labelVal = node.labelVal;
+					var labelVal = node.labelVal;
 					int nIdx;
 					for (nIdx = 1; nIdx + n < m_layers[m_layers.Count - 1].Count; nIdx++)
 					{
-						OutputNode tn = m_layers[m_layers.Count - 1][n + nIdx] as OutputNode;
+						var tn = m_layers[m_layers.Count - 1][n + nIdx] as OutputNode;
 						if (tn.labelCol != labelCol)
 						{
 							break;

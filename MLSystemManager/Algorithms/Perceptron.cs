@@ -46,11 +46,6 @@ namespace MLSystemManager.Algorithms
 				m_weights.Add(weights);
 			}
 
-			if (!string.IsNullOrEmpty(OutputFileName))
-			{
-				m_outputFile = File.AppendText(OutputFileName);
-			}
-
 			// iterate through each of the instances
 			for (var instance = 0; instance < m_count; instance++)
 			{

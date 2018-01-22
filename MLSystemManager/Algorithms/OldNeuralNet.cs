@@ -268,11 +268,6 @@ namespace MLSystemManager.Algorithms
 
 			m_layers.Add(oNodes);
 
-			if (!string.IsNullOrEmpty(OutputFileName))
-			{
-				m_outputFile = File.AppendText(OutputFileName);
-			}
-
 			var trainSize = (int)(0.75 * features.Rows());
 			var trainFeatures = new VMatrix(features, 0, 0, trainSize, features.Cols());
 			var trainLabels = new VMatrix(labels, 0, 0, trainSize, labels.Cols());

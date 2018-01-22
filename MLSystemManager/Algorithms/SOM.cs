@@ -132,11 +132,6 @@ namespace MLSystemManager.Algorithms
 
 			m_layers.Add(nodes);
 
-			if (!string.IsNullOrEmpty(OutputFileName))
-			{
-				m_outputFile = File.AppendText(OutputFileName);
-			}
-
 			if (m_outputFile != null)
 			{
 				m_outputFile.WriteLine(string.Format("Grid size: {0}", m_gridSize));

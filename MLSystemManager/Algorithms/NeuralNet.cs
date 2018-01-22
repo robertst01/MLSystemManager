@@ -9,13 +9,8 @@ namespace MLSystemManager.Algorithms
 {
 	public class NeuralNet : SupervisedLearner
 	{
-		private readonly List<Layer> _layers;
+		public List<Layer> Layers { get; set; }
 		private readonly Random _rand;
-		private readonly double _rate = 0.1;
-		private readonly double _momentum = 0.9;
-		private readonly string _activation = "sigmoid";
-		private int[] _hidden;
-		private StreamWriter _outputFile;
 
 		public enum LayerType
 		{
@@ -137,17 +132,14 @@ namespace MLSystemManager.Algorithms
 		public NeuralNet()
 		{
 			_rand = new Random();
-			_layers = new List<Layer>();
+			Layers = new List<Layer>();
 		}
 
 		public NeuralNet(Parameters parameters)
 		{
 			_rand = Rand.Get();
-			_rate = parameters.Rate;
-			_momentum = parameters.Momentum;
-			_activation = parameters.Activation;
-			_hidden = parameters.Hidden;
-			_layers = new List<Layer>();
+			Parameters = parameters;
+			Layers = new List<Layer>();
 		}
 
 		public override void Train(Matrix features, Matrix labels, double[] colMin, double[] colMax)
@@ -156,9 +148,11 @@ namespace MLSystemManager.Algorithms
 
 		public override void VTrain(VMatrix features, VMatrix labels, double[] colMin, double[] colMax)
 		{
-			if (_hidden.Length < 1)
+//			var nns = NeuralNetSave.Load("NeuralNet.txt");
+
+			if (Parameters.Hidden.Length < 1)
 			{
-				_hidden = new[] { features.Cols() * 2 };
+				Parameters.Hidden = new[] { features.Cols() * 2 };
 			}
 
 			// add the input nodes
@@ -175,12 +169,12 @@ namespace MLSystemManager.Algorithms
 				Previous = null,
 				Next = null
 			};
-			_layers.Add(iLayer);
+			Layers.Add(iLayer);
 
 			var prevLayer = iLayer;
 
 			// add the hidden nodes
-			foreach (var t in _hidden)
+			foreach (var t in Parameters.Hidden)
 			{
 				var hNodes = new List<Node>();
 
@@ -197,7 +191,7 @@ namespace MLSystemManager.Algorithms
 					Previous = prevLayer,
 					Next = null
 				};
-				_layers.Add(hLayer);
+				Layers.Add(hLayer);
 
 				prevLayer.Next = hLayer;
 				prevLayer = hLayer;
@@ -231,14 +225,9 @@ namespace MLSystemManager.Algorithms
 				Nodes = oNodes,
 				Previous = prevLayer
 			};
-			_layers.Add(oLayer);
+			Layers.Add(oLayer);
 
 			prevLayer.Next = oLayer;
-
-			if (!string.IsNullOrEmpty(OutputFileName))
-			{
-				_outputFile = File.AppendText(OutputFileName);
-			}
 
 			var trainSize = (int)(0.75 * features.Rows());
 			var trainFeatures = new VMatrix(features, 0, 0, trainSize, features.Cols());
@@ -249,34 +238,16 @@ namespace MLSystemManager.Algorithms
 			Console.Write("Layers: ");
 			Console.Write(iNodes.Count);
 			Console.Write('x');
-			foreach (var t in _hidden)
+			foreach (var t in Parameters.Hidden)
 			{
 				Console.Write(t);
 				Console.Write('x');
 			}
 			Console.WriteLine(oNodes.Count);
 			
-			Console.WriteLine("AF: " + _activation);
+			Console.WriteLine("AF: " + Parameters.Activation);
 			
 			Console.WriteLine("Epoch\tMSE (validation)");
-			if (_outputFile != null)
-			{
-				_outputFile.Write("Layers: ");
-				_outputFile.Write(iNodes.Count);
-				_outputFile.Write('x');
-				foreach (var t in _hidden)
-				{
-					_outputFile.Write(t);
-					_outputFile.Write('x');
-				}
-				_outputFile.WriteLine(oNodes.Count);
-
-				_outputFile.WriteLine("Momentum: " + _momentum);
-				_outputFile.WriteLine("AF: " + _activation);
-				_outputFile.WriteLine("Weights");
-				PrintWeights();
-				_outputFile.WriteLine("Epoch\tMSE (validation)");
-			}
 
 			int epoch;								// current epoch number
 			var bestEpoch = 0;						// epoch number of best MSE
@@ -294,13 +265,9 @@ namespace MLSystemManager.Algorithms
 
 				// check the MSE after this epoch
 				var mse = VGetMSE(validationFeatures, validationLabels);
+				var accuracy = VMeasureAccuracy(validationFeatures, validationLabels, null);
 
 				Console.WriteLine($"{epoch}-{eCount}\t{mse}");
-				if (_outputFile != null)
-				{
-					_outputFile.WriteLine($"{epoch}-{eCount}\t{mse}");
-					_outputFile.Flush();
-				}
 
 				if ((mse == 0) || (epoch > 5000))
 				{
@@ -323,7 +290,7 @@ namespace MLSystemManager.Algorithms
 					// save the best for later
 					bestMse = mse;
 					bestEpoch = epoch;
-					foreach (var layer in _layers)
+					foreach (var layer in Layers)
 					{
 						foreach (var node in layer.Nodes)
 						{
@@ -342,34 +309,19 @@ namespace MLSystemManager.Algorithms
 				}
 			}
 
-			if (_outputFile != null)
-			{
-				_outputFile.WriteLine();
-				_outputFile.WriteLine("Weights");
-				PrintWeights();
-			}
-
 			if ((bestEpoch > 0) && (bestEpoch != epoch))
 			{
-				foreach (var layer in _layers)
+				foreach (var layer in Layers)
 				{
 					foreach (var node in layer.Nodes)
 					{
 						node.RestoreBestWeights();
 					}
 				}
-				if (_outputFile != null)
-				{
-					_outputFile.WriteLine();
-					_outputFile.WriteLine($"Best Weights (from Epoch {bestEpoch}, valMSE={bestMse})");
-					PrintWeights();
-				}
 			}
 
-			if (_outputFile != null)
-			{
-				_outputFile.Close();
-			}
+//			var save = new NeuralNetSave(this);
+//			save.Save("NeuralNet.txt");
 		}
 
 		private void TrainEpoch(VMatrix features, VMatrix labels)
@@ -386,7 +338,7 @@ namespace MLSystemManager.Algorithms
 				}
 
 				// calculate the output
-				foreach (var layer in _layers)
+				foreach (var layer in Layers)
 				{
 #if parallel
 					Parallel.ForEach(layer.Nodes, node =>
@@ -415,7 +367,7 @@ namespace MLSystemManager.Algorithms
 							node.Net += node.Weights[node.Weights.Length - 1];
 
 							// calculate the output
-							switch (_activation)
+							switch (Parameters.Activation)
 							{
 								case "relu":
 									node.Output = node.Net < 0 ? 0.01 * node.Net : node.Net;
@@ -439,9 +391,9 @@ namespace MLSystemManager.Algorithms
 				}
 
 				// calculate the error and weight changes
-				for (var i = _layers.Count - 1; i > 0; i--)
+				for (var i = Layers.Count - 1; i > 0; i--)
 				{
-					var layer = _layers[i];
+					var layer = Layers[i];
 #if parallel
 					Parallel.ForEach(layer.Nodes, node =>
 #else
@@ -449,7 +401,7 @@ namespace MLSystemManager.Algorithms
 #endif
 					{
 						double fPrime;
-						switch (_activation)
+						switch (Parameters.Activation)
 						{
 							case "relu":
 								fPrime = (node.Output < 0 ? 0.01 : 1);
@@ -494,14 +446,14 @@ namespace MLSystemManager.Algorithms
 						double delta;
 						for (var w = 0; w < node.Weights.Length - 1; w++)
 						{
-							delta = _rate * node.Error * layer.Previous.Nodes[w].Output;
-							delta += _momentum * node.Deltas[w];
+							delta = Parameters.Rate * node.Error * layer.Previous.Nodes[w].Output;
+							delta += Parameters.Momentum * node.Deltas[w];
 							node.Deltas[w] = delta;
 						}
 
 						// calculate the bias weight change
-						delta = _rate * node.Error;
-						delta += _momentum * node.Deltas[node.Weights.Length - 1];
+						delta = Parameters.Rate * node.Error;
+						delta += Parameters.Momentum * node.Deltas[node.Weights.Length - 1];
 						node.Deltas[node.Weights.Length - 1] = delta;
 #if parallel
 					});
@@ -511,7 +463,7 @@ namespace MLSystemManager.Algorithms
 				}
 
 				// update the weights
-				foreach (var layer in _layers)
+				foreach (var layer in Layers)
 				{
 					if (layer.Type != LayerType.Input)
 					{
@@ -560,7 +512,7 @@ namespace MLSystemManager.Algorithms
 				}
 
 				// calculate the output
-				foreach (var layer in _layers)
+				foreach (var layer in Layers)
 				{
 #if parallel
 					Parallel.ForEach(layer.Nodes, node =>
@@ -587,7 +539,7 @@ namespace MLSystemManager.Algorithms
 							node.Net += node.Weights[node.Weights.Length - 1];
 
 							// calculate the output
-							switch (_activation)
+							switch (Parameters.Activation)
 							{
 								case "relu":
 									node.Output = node.Net < 0 ? 0.01 * node.Net : node.Net;
@@ -611,7 +563,7 @@ namespace MLSystemManager.Algorithms
 				}
 
 				// calculate the error of the output layer
-				foreach (var node in _layers[_layers.Count - 1].Nodes)
+				foreach (var node in Layers[Layers.Count - 1].Nodes)
 				{
 					var oNode = node as OutputNode;
 					var target = labels.Get(row, oNode.LabelCol);
@@ -639,31 +591,9 @@ namespace MLSystemManager.Algorithms
 			return sse / features.Rows();
 		}
 
-		private void PrintWeights()
-		{
-			foreach (var layer in _layers)
-			{
-				if (layer.Type == LayerType.Input)
-				{
-					continue;
-				}
-				_outputFile.WriteLine("Layer " + _layers.IndexOf(layer));
-				foreach (var node in layer.Nodes)
-				{
-					for (var w = 0; w < node.Weights.Length - 1; w++)
-					{
-						_outputFile.Write($"{node.Weights[w]}\t");
-					}
-					_outputFile.WriteLine(node.Weights[node.Weights.Length - 1]);
-				}
-			}
-			_outputFile.WriteLine();
-			_outputFile.Flush();
-		}
-
 		public override void Predict(double[] features, double[] labels)
 		{
-			foreach (var layer in _layers)
+			foreach (var layer in Layers)
 			{
 #if parallel
 				Parallel.ForEach(layer.Nodes, node =>
@@ -689,7 +619,7 @@ namespace MLSystemManager.Algorithms
 						// add the bias
 						node.Net += node.Weights[node.Weights.Length - 1];
 
-						switch (_activation)
+						switch (Parameters.Activation)
 						{
 							case "relu":
 								node.Output = node.Net < 0 ? 0.01 * node.Net : node.Net;
@@ -713,7 +643,7 @@ namespace MLSystemManager.Algorithms
 			}
 
 			var labelIdx = 0;
-			var outputLayer = _layers[_layers.Count - 1];
+			var outputLayer = Layers[Layers.Count - 1];
 			for (var n = 0; n < outputLayer.Nodes.Count; n++)
 			{
 				var oNode = outputLayer.Nodes[n] as OutputNode;

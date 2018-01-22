@@ -188,11 +188,6 @@ namespace MLSystemManager.Algorithms
 
 			m_layers.Add(iNodes);
 
-			if (!string.IsNullOrEmpty(OutputFileName))
-			{
-				m_outputFile = File.AppendText(OutputFileName);
-			}
-
 			// figure out how many outputs we need
 			int oCount = 0;
 			for (var col = 0; col < labels.Cols(); col++)

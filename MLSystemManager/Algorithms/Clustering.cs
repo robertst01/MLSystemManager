@@ -253,18 +253,12 @@ namespace MLSystemManager.Algorithms
 				_labels = new VMatrix(labels, 0, 0, labels.Rows(), labels.Cols());
 			}
 			_clusters = new List<Cluster>();
-			if (!string.IsNullOrEmpty(OutputFileName))
-			{
-				_outputFile = File.AppendText(OutputFileName);
-				_outputFile.Write("Algorithm: ");
-			}
+
+			Console.Write("Algorithm: ");
 
 			if (_algorithm == "k")
 			{
-				if (_outputFile != null)
-				{
-					_outputFile.WriteLine("k-means (k = " + _k + ")");
-				}
+				Console.WriteLine("k-means (k = " + _k + ")");
 
 //				Features.Shuffle(Rand, Labels);
 

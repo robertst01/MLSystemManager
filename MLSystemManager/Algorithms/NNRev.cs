@@ -242,11 +242,6 @@ namespace MLSystemManager.Algorithms
 
 			InitNodes();
 
-			if (!string.IsNullOrEmpty(OutputFileName))
-			{
-				m_outputFile = File.AppendText(OutputFileName);
-			}
-
 			int trainSize = (int)(0.75 * features.Rows());
 			VMatrix trainFeatures = new VMatrix(features, 0, 0, trainSize, features.Cols());
 			VMatrix trainLabels = new VMatrix(labels, 0, 0, trainSize, labels.Cols());

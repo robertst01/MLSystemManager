@@ -21,8 +21,9 @@ namespace MLSystemManager
 		public double Pi { get; set; } = 0.8;
 		public int Outputs { get; set; } = 1;
 		public int[] Hidden { get; set; }
-		public string OutputFileName { get; set; }
-		public string WeightsFileName { get; set; }
+		public int BatchSize { get; set; } = 1;
+		public string SnapshotFileName { get; set; }
+		public int SnapshotInterval { get; set; } = 1000;
 		public bool Verbose { get; set; } = false;
 		public bool Normalize { get; set; } = false;
 		public bool NormalizeOutputs { get; set; } = false;
@@ -41,19 +42,27 @@ namespace MLSystemManager
 
 		private static Parameters _parameters = null;
 
-		public static Parameters Get(string filePath)
+		public static Parameters Load(string filePath)
 		{
-			if (_parameters == null)
-			{
-				var r = new StreamReader(filePath);
-				var json = r.ReadToEnd();
-				MemoryStream ms = new MemoryStream(Encoding.UTF8.GetBytes(json));
-				_parameters = new Parameters();
-				DataContractJsonSerializer ser = new DataContractJsonSerializer(_parameters.GetType());
-				_parameters = ser.ReadObject(ms) as Parameters;
-				ms.Close();
-			}
+			var r = new StreamReader(filePath);
+			var json = r.ReadToEnd();
+			var ms = new MemoryStream(Encoding.UTF8.GetBytes(json));
+			_parameters = new Parameters();
+			var ser = new DataContractJsonSerializer(_parameters.GetType());
+			_parameters = ser.ReadObject(ms) as Parameters;
+			ms.Close();
+
 			return _parameters;
+		}
+
+		public static Parameters Get()
+		{
+			return _parameters;
+		}
+
+		public static void Set(Parameters parameters)
+		{
+			_parameters = parameters;
 		}
 	}
 }

@@ -173,11 +173,6 @@ namespace MLSystemManager.Algorithms
 				m_hidden = new int[1] { features.Cols() * 2 };
 			}
 
-			if (!string.IsNullOrEmpty(OutputFileName))
-			{
-				m_outputFile = File.AppendText(OutputFileName);
-			}
-
 			// create output nodes
 			List<Node> oNodes = new List<Node>();
 

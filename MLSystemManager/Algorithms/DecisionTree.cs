@@ -62,11 +62,6 @@ namespace MLSystemManager.Algorithms
 
 		public override void Train(Matrix features, Matrix labels, double[] colMin, double[] colMax)
 		{
-			if (!string.IsNullOrEmpty(OutputFileName))
-			{
-				m_outputFile = File.AppendText(OutputFileName);
-			}
-
 			int trainSize = (int)(0.75 * features.Rows());
 			if (!m_prune)
 			{
@@ -89,7 +84,7 @@ namespace MLSystemManager.Algorithms
 
 			CreateSubTree(m_tree);
 
-			if (Verbose)
+			if (Parameters.Verbose)
 			{
 				PrintTree(m_tree, 0);
 			}
@@ -114,7 +109,7 @@ namespace MLSystemManager.Algorithms
 					var maxNode = PruneNode(m_tree);
 					if (maxNode != null)
 					{
-						if (Verbose && m_outputFile != null)
+						if (Parameters.Verbose && m_outputFile != null)
 						{
 							m_outputFile.WriteLine(string.Format("MaxAccuracy (pruning): node {0}", maxNode.m_nodeNumber));
 						}
@@ -391,7 +386,7 @@ namespace MLSystemManager.Algorithms
 				node.m_feature = node.m_parent.m_feature;
 			}
 			node.m_accuracy = GetAccuracy(m_validationFeatures, m_validationLabels);
-			if (Verbose && m_outputFile != null)
+			if (Parameters.Verbose && m_outputFile != null)
 			{
 				m_outputFile.WriteLine(string.Format("Pruning {0}\taccuracy: {1}", node.m_nodeNumber, node.m_accuracy));
 			}

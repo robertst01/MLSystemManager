@@ -33,17 +33,6 @@ namespace MLSystemManager.Algorithms
 			Labels = new Matrix(labels, 0, 0, labels.Rows(), labels.Cols());
 			Distances = new double[Features.Rows()];
 
-			if (!string.IsNullOrEmpty(OutputFileName))
-			{
-				using (StreamWriter w = File.AppendText(OutputFileName))
-				{
-					w.WriteLine();
-					w.WriteLine("Distance: " + Distance);
-					w.WriteLine("K: " + K);
-					w.WriteLine("Prune: " + Prune);
-				}
-			}
-
 			if (Prune)
 			{
 				DoPrune();
@@ -125,15 +114,9 @@ namespace MLSystemManager.Algorithms
 				}
 			}
 
-			if (!string.IsNullOrEmpty(OutputFileName))
-			{
-				using (StreamWriter w = File.AppendText(OutputFileName))
-				{
-					w.WriteLine();
-					w.WriteLine("After pruning:");
-					w.WriteLine("Number of instances: " + Features.Rows());
-				}
-			}
+			Console.WriteLine();
+			Console.WriteLine("After pruning:");
+			Console.WriteLine("Number of instances: " + Features.Rows());
 		}
 
 		/// <summary>

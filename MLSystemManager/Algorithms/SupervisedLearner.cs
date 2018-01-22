@@ -11,13 +11,7 @@ namespace MLSystemManager.Algorithms
 	public abstract class SupervisedLearner
 	{
 		// true if verbose
-		public bool Verbose { get; set; }
-
-		// the full path of an output file (if any)
-		public string OutputFileName { get; set; }
-
-		// the full path of a weights file (if any)
-		public string WeightsFileName { get; set; }
+		public Parameters Parameters { get; set; }
 
 		// Before you call this method, you need to divide your data
 		// into a feature matrix and a label matrix.
@@ -59,19 +53,19 @@ namespace MLSystemManager.Algorithms
 				throw (new Exception("Expected at least one row"));
 			}
 
-			int labelValues = labels.ValueCount(0);
+			var labelValues = labels.ValueCount(0);
 			if (labelValues == 0) // If the label is continuous...
 			{
 				// The label is continuous, so measure root mean squared error
-				double[] pred = new double[1];
-				double sse = 0.0;
-				for (int i = 0; i < features.Rows(); i++)
+				var pred = new double[1];
+				var sse = 0.0;
+				for (var i = 0; i < features.Rows(); i++)
 				{
-					double[] feat = features.Row(i);
-					double[] targ = labels.Row(i);
+					var feat = features.Row(i);
+					var targ = labels.Row(i);
 					pred[0] = 0.0; // make sure the prediction is not biassed by a previous prediction
 					Predict(feat, pred);
-					double delta = targ[0] - pred[0];
+					var delta = targ[0] - pred[0];
 					sse += (delta * delta);
 				}
 				return Math.Sqrt(sse / features.Rows());
@@ -82,23 +76,23 @@ namespace MLSystemManager.Algorithms
 				if (confusion != null)
 				{
 					confusion.SetSize(labelValues, labelValues);
-					for (int i = 0; i < labelValues; i++)
+					for (var i = 0; i < labelValues; i++)
 					{
 						confusion.SetAttrName(i, labels.AttrValue(0, i));
 					}
 				}
-				int correctCount = 0;
-				double[] prediction = new double[1];
-				for (int i = 0; i < features.Rows(); i++)
+				var correctCount = 0;
+				var prediction = new double[1];
+				for (var i = 0; i < features.Rows(); i++)
 				{
-					double[] feat = features.Row(i);
-					int targ = (int)labels.Get(i, 0);
+					var feat = features.Row(i);
+					var targ = (int)labels.Get(i, 0);
 					if (targ >= labelValues)
 					{
 						throw new Exception("The label is out of range");
 					}
 					Predict(feat, prediction);
-					int pred = (int)prediction[0];
+					var pred = (int)prediction[0];
 					if (confusion != null)
 					{
 						confusion.Set(targ, pred, confusion.Get(targ, pred) + 1);
@@ -127,48 +121,48 @@ namespace MLSystemManager.Algorithms
 				throw (new Exception("Expected at least one row"));
 			}
 
-			int cl = 0;
-			if (Verbose)
+			var cl = 0;
+			if (Parameters.Verbose)
 			{
 				Console.Write("VMeasureAccuracy ");
 				cl = Console.CursorLeft;
 			}
 
-			int count = features.Rows();
-			int begRow = 0;
+			var count = features.Rows();
+			var begRow = 0;
 			if (this is BPTT)
 			{
-				BPTT learner = this as BPTT;
+				var learner = this as BPTT;
 				begRow = learner.m_k - 1;
 				count -= begRow;
 			}
 
-			int labelValues = labels.ValueCount(0);
+			var labelValues = labels.ValueCount(0);
 			if (labelValues == 0) // If the label is continuous...
 			{
 				// The label is continuous, so measure root mean squared error
-				double[] pred = new double[1];
-				double sse = 0.0;
-				for (int i = 0; i < features.Rows(); i++)
+				var pred = new double[1];
+				var sse = 0.0;
+				for (var i = 0; i < features.Rows(); i++)
 				{
-					if (Verbose)
+					if (Parameters.Verbose)
 					{
 						Console.SetCursorPosition(cl, Console.CursorTop);
 						Console.Write(i);
 					}
 
-					double[] feat = features.Row(i);
-					double[] targ = labels.Row(i);
-					pred[0] = 0.0; // make sure the prediction is not biassed by a previous prediction
+					var feat = features.Row(i);
+					var targ = labels.Row(i);
+					pred[0] = 0.0; // make sure the prediction is not biased by a previous prediction
 					Predict(feat, pred);
 					if (i >= begRow)
 					{
-						double delta = targ[0] - pred[0];
+						var delta = targ[0] - pred[0];
 						sse += (delta * delta);
 					}
 				}
 
-				if (Verbose)
+				if (Parameters.Verbose)
 				{
 					Console.WriteLine();
 				}
@@ -181,26 +175,26 @@ namespace MLSystemManager.Algorithms
 				if (confusion != null)
 				{
 					confusion.SetSize(labelValues, labelValues);
-					for (int i = 0; i < labelValues; i++)
+					for (var i = 0; i < labelValues; i++)
 					{
 						confusion.SetAttrName(i, labels.AttrValue(0, i));
 					}
 				}
-				int correctCount = 0;
-				double[] prediction = new double[1];
-				for (int i = 0; i < features.Rows(); i++)
+				var correctCount = 0;
+				var prediction = new double[1];
+				for (var i = 0; i < features.Rows(); i++)
 				{
-					if (Verbose)
+					if (Parameters.Verbose)
 					{
 						Console.SetCursorPosition(cl, Console.CursorTop);
 						Console.Write(i);
 					}
 
-					double[] feat = features.Row(i);
-					double lab = labels.Get(i, 0);
+					var feat = features.Row(i);
+					var lab = labels.Get(i, 0);
 					if (lab != Matrix.MISSING)
 					{
-						int targ = (int)lab;
+						var targ = (int)lab;
 						if (targ >= labelValues)
 						{
 							throw new Exception("The label is out of range");
@@ -208,7 +202,7 @@ namespace MLSystemManager.Algorithms
 						Predict(feat, prediction);
 						if (i >= begRow)
 						{
-							int pred = (int)prediction[0];
+							var pred = (int)prediction[0];
 							if (confusion != null)
 							{
 								confusion.Set(targ, pred, confusion.Get(targ, pred) + 1);
@@ -225,7 +219,7 @@ namespace MLSystemManager.Algorithms
 					}
 				}
 
-				if (Verbose)
+				if (Parameters.Verbose)
 				{
 					Console.WriteLine();
 				}
