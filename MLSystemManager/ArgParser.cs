@@ -57,6 +57,11 @@ namespace MLSystemManager
 								//expecting the number of folds
 								parameters.EvalExtra = argv[++i];
 							}
+							else if (argv[i] == "test")
+							{
+								//expecting a test set name
+								parameters.EvalExtra = argv[++i];
+							}
 							else if (argv[i] != "training")
 							{
 								Console.WriteLine("Invalid Evaluation Method: " + argv[i]);

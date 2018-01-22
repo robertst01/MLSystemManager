@@ -20,7 +20,9 @@ namespace MLSystemManager.Algorithms
 		[DataMember]
 		public string Activation { get; set; }
 		[DataMember]
-		public double TrainAccuracy { get; set; }
+		public int SnapshotInterval { get; set; }
+		[DataMember]
+		public int BatchSize { get; set; }
 		[DataMember]
 		public double ValidationAccuracy { get; set; }
 		[DataMember]
@@ -33,8 +35,6 @@ namespace MLSystemManager.Algorithms
 		[DataContract]
 		public class Node
 		{
-			[DataMember]
-			public NeuralNet.LayerType Type { get; set; }
 			[DataMember]
 			public int Feature { get; set; }
 			[DataMember]
@@ -51,18 +51,34 @@ namespace MLSystemManager.Algorithms
 			public double[] Weights { get; set; }
 		}
 
+		[DataContract]
 		public class Layer
 		{
+			[DataMember]
 			public NeuralNet.LayerType Type { get; set; }
+			[DataMember]
 			public List<Node> Nodes { get; set; }
 		}
 
-		public NeuralNetSave(NeuralNet neuralNet)
+		private NeuralNetSave()
 		{
-			Rate = neuralNet.Parameters.Rate;
-			Momentum = neuralNet.Parameters.Momentum;
-			Activation = neuralNet.Parameters.Activation;
-			Layers = new List<Layer>();
+		}
+
+		public static void Save(string fileName, NeuralNet neuralNet, int epoch, double mse, double accuracy)
+		{
+			var nns = new NeuralNetSave()
+			{
+				Rate = neuralNet.Parameters.Rate,
+				Momentum = neuralNet.Parameters.Momentum,
+				Activation = neuralNet.Parameters.Activation,
+				ValidationAccuracy = accuracy,
+				SnapshotInterval = neuralNet.Parameters.SnapshotInterval,
+				BatchSize = neuralNet.Parameters.BatchSize,
+				Mse = mse,
+				Epoch = epoch,
+				Layers = new List<Layer>()
+			};
+
 			foreach (var layer in neuralNet.Layers)
 			{
 				var newLayer = new Layer()
@@ -75,51 +91,96 @@ namespace MLSystemManager.Algorithms
 				{
 					var newNode = new Node()
 					{
-						Type = layer.Type,
 						Weights = node.Weights
 					};
 
 					switch (layer.Type)
 					{
 						case NeuralNet.LayerType.Input:
-							newNode.Feature = ((NeuralNet.InputNode)node).Feature;
-							newNode.MinValue = ((NeuralNet.InputNode)node).MinValue;
-							newNode.MaxValue = ((NeuralNet.InputNode)node).MaxValue;
+							newNode.Feature = ((NeuralNet.InputNode) node).Feature;
+							newNode.MinValue = ((NeuralNet.InputNode) node).MinValue;
+							newNode.MaxValue = ((NeuralNet.InputNode) node).MaxValue;
 							break;
 
 						case NeuralNet.LayerType.Output:
-							newNode.IsContinuous = ((NeuralNet.OutputNode)node).IsContinuous;
-							newNode.LabelCol = ((NeuralNet.OutputNode)node).LabelCol;
-							newNode.LabelVal = ((NeuralNet.OutputNode)node).LabelVal;
+							newNode.IsContinuous = ((NeuralNet.OutputNode) node).IsContinuous;
+							newNode.LabelCol = ((NeuralNet.OutputNode) node).LabelCol;
+							newNode.LabelVal = ((NeuralNet.OutputNode) node).LabelVal;
 							break;
 					}
 
 					newLayer.Nodes.Add(newNode);
 				}
 
-				Layers.Add(newLayer);
+				nns.Layers.Add(newLayer);
 			}
-		}
 
-		public void Save(string fileName)
-		{
-			var json = JsonConvert.SerializeObject(this, Formatting.Indented);
+			var json = JsonConvert.SerializeObject(nns, Formatting.Indented);
 			using (var w = new StreamWriter(fileName))
 			{
 				w.Write(json);
 			}
 		}
 
-		public static NeuralNetSave Load(string filePath)
+		public static void Load(string filePath, NeuralNet neuralNet)
 		{
 			var r = new StreamReader(filePath);
 			var json = r.ReadToEnd();
 			var ms = new MemoryStream(Encoding.UTF8.GetBytes(json));
 			var ser = new DataContractJsonSerializer(typeof(NeuralNetSave));
-			var neuralNetSave = ser.ReadObject(ms) as NeuralNetSave;
+			var nns = ser.ReadObject(ms) as NeuralNetSave;
 			ms.Close();
 
-			return neuralNetSave;
+			neuralNet.Parameters.Rate = nns.Rate;
+			neuralNet.Parameters.Momentum = nns.Momentum;
+			neuralNet.Parameters.Activation = nns.Activation;
+			neuralNet.Parameters.SnapshotInterval = nns.SnapshotInterval;
+			neuralNet.Parameters.BatchSize = nns.BatchSize;
+			neuralNet.Parameters.StartEpoch = nns.Epoch;
+
+			neuralNet.Layers = new List<NeuralNet.Layer>();
+			NeuralNet.Layer prevLayer = null;
+
+			foreach (var layer in nns.Layers)
+			{
+				var newLayer = new NeuralNet.Layer()
+				{
+					Type = layer.Type,
+					Nodes = new List<NeuralNet.Node>()
+				};
+
+				var idx = 0;
+				foreach (var node in layer.Nodes)
+				{
+					NeuralNet.Node newNode = null;
+					switch (layer.Type)
+					{
+						case NeuralNet.LayerType.Input:
+							newNode = new NeuralNet.InputNode(idx, node.Feature, node.MinValue, node.MaxValue, null);
+							break;
+
+						case NeuralNet.LayerType.Hidden:
+							newNode = new NeuralNet.HiddenNode(idx, node.Weights);
+							break;
+
+						case NeuralNet.LayerType.Output:
+							newNode = new NeuralNet.OutputNode(idx, node.IsContinuous, node.LabelCol, node.LabelVal, node.Weights);
+							break;
+					}
+
+					idx++;
+					newLayer.Nodes.Add(newNode);
+				}
+
+				newLayer.Previous = prevLayer;
+				neuralNet.Layers.Add(newLayer);
+
+				if (prevLayer != null)
+				{
+					prevLayer.Next = newLayer;
+				}
+				prevLayer = newLayer;
+			}
 		}
 	}
 }

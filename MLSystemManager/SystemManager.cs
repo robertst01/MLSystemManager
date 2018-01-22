@@ -96,6 +96,7 @@ namespace MLSystemManager
 			Console.WriteLine("Evaluation method: " + parameters.Evaluation);
 			Console.WriteLine("Learning Rate: " + parameters.Rate);
 			Console.WriteLine("Outputs: " + parameters.Outputs);
+			Console.WriteLine("Snapshot File: " + parameters.SnapshotFileName);
 			Console.WriteLine();
 
 			if (parameters.Evaluation == "training")
@@ -159,6 +160,30 @@ namespace MLSystemManager
 				Console.WriteLine("Time to train (in seconds): " + elapsedTime.TotalSeconds);
 				var trainAccuracy = learner.VMeasureAccuracy(features, labels, null);
 				Console.WriteLine("Training set accuracy: " + trainAccuracy);
+				var testFeatures = new VMatrix(testData, 0, 0, testData.Rows(), testData.Cols() - parameters.Outputs);
+				var testLabels = new VMatrix(testData, 0, testData.Cols() - parameters.Outputs, testData.Rows(), parameters.Outputs);
+				var confusion = new Matrix();
+				var testAccuracy = learner.VMeasureAccuracy(testFeatures, testLabels, confusion);
+				Console.WriteLine("Test set accuracy: " + testAccuracy);
+				if (parameters.Verbose)
+				{
+					Console.WriteLine("\nConfusion matrix: (Row=target value, Col=predicted value)");
+					confusion.Print();
+					Console.WriteLine("\n");
+				}
+			}
+			else if (parameters.Evaluation == "test")
+			{
+				var testData = new Matrix();
+				testData.LoadArff(parameters.EvalExtra);
+				if (parameters.Normalize)
+				{
+					testData.Normalize(); // BUG! This may normalize differently from the training data. It should use the same ranges for normalization!
+				}
+
+				Console.WriteLine("Calculating accuracy on separate test set...");
+				Console.WriteLine("Test set name: " + parameters.EvalExtra);
+				Console.WriteLine("Number of test instances: " + testData.Rows());
 				var testFeatures = new VMatrix(testData, 0, 0, testData.Rows(), testData.Cols() - parameters.Outputs);
 				var testLabels = new VMatrix(testData, 0, testData.Cols() - parameters.Outputs, testData.Rows(), parameters.Outputs);
 				var confusion = new Matrix();
