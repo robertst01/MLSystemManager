@@ -101,15 +101,11 @@ namespace MLSystemManager.Algorithms
 		{
 			public int feature { get; set; }
 			public int valueCount { get; set; }
-			public double minValue { get; set; }
-			public double maxValue { get; set; }
-			public InputNode(int feature, int valueCount, double minValue, double maxValue, Random rand)
+			public InputNode(int feature, int valueCount, Random rand)
 				: base(0, rand, null)
 			{
 				this.feature = feature;
 				this.valueCount = valueCount;
-				this.minValue = minValue;
-				this.maxValue = maxValue;
 			}
 		}
 
@@ -165,11 +161,11 @@ namespace MLSystemManager.Algorithms
 			m_layers = new List<List<Node>>();
 		}
 
-		public override void Train(Matrix features, Matrix labels, double[] colMin, double[] colMax)
+		public override void Train(Matrix features, Matrix labels)
 		{
 		}
 
-		public override void VTrain(VMatrix features, VMatrix labels, double[] colMin, double[] colMax)
+		public override void VTrain(VMatrix features, VMatrix labels)
 		{
 			if (m_hidden.Length < 1)
 			{
@@ -182,7 +178,7 @@ namespace MLSystemManager.Algorithms
 			List<Node> iNodes = new List<Node>();
 			for (var i = 0; i < features.Cols(); i++)
 			{
-				iNodes.Add(new InputNode(i, 0, colMin[i], colMax[i], m_rand));
+				iNodes.Add(new InputNode(i, 0, m_rand));
 			}
 
 			m_layers.Add(iNodes);
@@ -209,10 +205,10 @@ namespace MLSystemManager.Algorithms
 				double trainMSE = VGetMSE(trainFeatures, trainLabels);
 				double mse = VGetMSE(validationFeatures, validationLabels);
 				double accuracy = VMeasureAccuracy(validationFeatures, validationLabels, null);
-				Console.WriteLine(string.Format("1\t{0}\t{1}\t{2}", trainMSE, mse, accuracy));
+				Console.WriteLine($"1\t{trainMSE}\t{mse}\t{accuracy}");
 				if (m_outputFile != null)
 				{
-					m_outputFile.WriteLine(string.Format("1\t{0}\t{1}\t{2}", trainMSE, mse, accuracy));
+					m_outputFile.WriteLine($"1\t{trainMSE}\t{mse}\t{accuracy}");
 				}
 			}
 			else
@@ -323,10 +319,10 @@ namespace MLSystemManager.Algorithms
 							accuracy = VMeasureAccuracy(validationFeatures, validationLabels, null);
 						}
 
-						Console.WriteLine(string.Format("{0}-{1}-{2}\t{3}\t{4}\t{5}", round, epoch, eCount, trainMSE, mse, accuracy));
+						Console.WriteLine($"{round}-{epoch}-{eCount}\t{trainMSE}\t{mse}\t{accuracy}");
 						if (m_outputFile != null)
 						{
-							m_outputFile.WriteLine(string.Format("{0}-{1}-{2}\t{3}\t{4}\t{5}", round, epoch, eCount, trainMSE, mse, accuracy));
+							m_outputFile.WriteLine($"{round}-{epoch}-{eCount}\t{trainMSE}\t{mse}\t{accuracy}");
 							m_outputFile.Flush();
 						}
 
@@ -401,11 +397,11 @@ namespace MLSystemManager.Algorithms
 							}
 						}
 
-						Console.WriteLine(string.Format("Best Weights (from Epoch {0}, trainMSE={1}, valMSE={2})", bestEpoch, bestTrainMSE, bestMSE));
+						Console.WriteLine($"Best Weights (from Epoch {bestEpoch}, trainMSE={bestTrainMSE}, valMSE={bestMSE})");
 						if (m_outputFile != null)
 						{
 							m_outputFile.WriteLine();
-							m_outputFile.WriteLine(string.Format("Best Weights (from Epoch {0}, trainMSE={1}, valMSE={2})", bestEpoch, bestTrainMSE, bestMSE));
+							m_outputFile.WriteLine($"Best Weights (from Epoch {bestEpoch}, trainMSE={bestTrainMSE}, valMSE={bestMSE})");
 							m_outputFile.Flush();
 						}
 					}
@@ -452,7 +448,7 @@ namespace MLSystemManager.Algorithms
 				aFile.WriteLine();
 				for (var i = 1; i <= m_layers[m_layers.Count - 3].Count; i++)
 				{
-					aFile.WriteLine(string.Format("@ATTRIBUTE hn{0}	real", i));
+					aFile.WriteLine($"@ATTRIBUTE hn{i}	real");
 				}
 				aFile.WriteLine("@ATTRIBUTE class	{0,1,2,3,4,5,6,7,8,9}");
 				aFile.WriteLine();
@@ -881,7 +877,7 @@ namespace MLSystemManager.Algorithms
 				{
 					for (var w = 0; w < node.weights.Length - 1; w++)
 					{
-						m_outputFile.Write(string.Format("{0}\t", node.weights[w]));
+						m_outputFile.Write($"{node.weights[w]}\t");
 					}
 					m_outputFile.WriteLine(node.weights[node.weights.Length - 1]);
 				}

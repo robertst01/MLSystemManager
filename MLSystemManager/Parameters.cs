@@ -40,6 +40,8 @@ namespace MLSystemManager
 		public bool TrainAll { get; set; } = false;
 		public double Boost { get; set; } = 1.0;
 		public int StartEpoch { get; set; }
+		public double InitialMse { get; set; }		// MSE for initial epoch
+		public double StartMse { get; set; }		// MSE for this iteration
 
 		private static Parameters _parameters = null;
 

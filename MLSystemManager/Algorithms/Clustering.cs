@@ -241,11 +241,11 @@ namespace MLSystemManager.Algorithms
 			}
 		}
 
-		public override void Train(Matrix features, Matrix labels, double[] colMin, double[] colMax)
+		public override void Train(Matrix features, Matrix labels)
 		{
 		}
 
-		public override void VTrain(VMatrix features, VMatrix labels, double[] colMin, double[] colMax)
+		public override void VTrain(VMatrix features, VMatrix labels)
 		{
 			_features = new VMatrix(features, 0, 0, features.Rows(), features.Cols());
 			if (labels.Data != null)

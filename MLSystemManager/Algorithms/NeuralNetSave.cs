@@ -1,11 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.Text;
-using System.Threading.Tasks;
 using Newtonsoft.Json;
 
 namespace MLSystemManager.Algorithms
@@ -28,6 +25,8 @@ namespace MLSystemManager.Algorithms
 		[DataMember]
 		public double Mse { get; set; }
 		[DataMember]
+		public double InitialMse { get; set; }
+		[DataMember]
 		public int Epoch { get; set; }
 		[DataMember]
 		public List<Layer> Layers { get; set; }
@@ -37,10 +36,6 @@ namespace MLSystemManager.Algorithms
 		{
 			[DataMember]
 			public int Feature { get; set; }
-			[DataMember]
-			public double MinValue { get; set; }
-			[DataMember]
-			public double MaxValue { get; set; }
 			[DataMember]
 			public bool IsContinuous { get; set; }
 			[DataMember]
@@ -64,7 +59,7 @@ namespace MLSystemManager.Algorithms
 		{
 		}
 
-		public static void Save(string fileName, NeuralNet neuralNet, int epoch, double mse, double accuracy)
+		public static void Save(string fileName, NeuralNet neuralNet, int epoch, double mse, double initialMse, double accuracy)
 		{
 			var nns = new NeuralNetSave()
 			{
@@ -75,6 +70,7 @@ namespace MLSystemManager.Algorithms
 				SnapshotInterval = neuralNet.Parameters.SnapshotInterval,
 				BatchSize = neuralNet.Parameters.BatchSize,
 				Mse = mse,
+				InitialMse = initialMse,
 				Epoch = epoch,
 				Layers = new List<Layer>()
 			};
@@ -98,8 +94,6 @@ namespace MLSystemManager.Algorithms
 					{
 						case NeuralNet.LayerType.Input:
 							newNode.Feature = ((NeuralNet.InputNode) node).Feature;
-							newNode.MinValue = ((NeuralNet.InputNode) node).MinValue;
-							newNode.MaxValue = ((NeuralNet.InputNode) node).MaxValue;
 							break;
 
 						case NeuralNet.LayerType.Output:
@@ -137,6 +131,8 @@ namespace MLSystemManager.Algorithms
 			neuralNet.Parameters.SnapshotInterval = nns.SnapshotInterval;
 			neuralNet.Parameters.BatchSize = nns.BatchSize;
 			neuralNet.Parameters.StartEpoch = nns.Epoch;
+			neuralNet.Parameters.InitialMse = nns.InitialMse;
+			neuralNet.Parameters.StartMse = nns.Mse;
 
 			neuralNet.Layers = new List<NeuralNet.Layer>();
 			NeuralNet.Layer prevLayer = null;
@@ -156,7 +152,7 @@ namespace MLSystemManager.Algorithms
 					switch (layer.Type)
 					{
 						case NeuralNet.LayerType.Input:
-							newNode = new NeuralNet.InputNode(idx, node.Feature, node.MinValue, node.MaxValue, null);
+							newNode = new NeuralNet.InputNode(idx, node.Feature, null);
 							break;
 
 						case NeuralNet.LayerType.Hidden:

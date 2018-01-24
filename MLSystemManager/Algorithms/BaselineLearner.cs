@@ -15,7 +15,7 @@ namespace MLSystemManager.Algorithms
 	{
 		private double[] m_labels;
 
-		public override void Train(Matrix features, Matrix labels, double[] colMin, double[] colMax)
+		public override void Train(Matrix features, Matrix labels)
 		{
 			m_labels = new double[labels.Cols()];
 			for (int i = 0; i < labels.Cols(); i++)
@@ -27,7 +27,7 @@ namespace MLSystemManager.Algorithms
 			}
 		}
 
-		public override void VTrain(VMatrix features, VMatrix labels, double[] colMin, double[] colMax)
+		public override void VTrain(VMatrix features, VMatrix labels)
 		{
 		}
 

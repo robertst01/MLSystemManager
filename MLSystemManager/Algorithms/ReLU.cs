@@ -137,11 +137,11 @@ namespace MLSystemManager.Algorithms
 			}
 		}
 
-		public override void Train(Matrix features, Matrix labels, double[] colMin, double[] colMax)
+		public override void Train(Matrix features, Matrix labels)
 		{
 		}
 
-		public override void VTrain(VMatrix features, VMatrix labels, double[] colMin, double[] colMax)
+		public override void VTrain(VMatrix features, VMatrix labels)
 		{
 			if (m_hidden.Length < 1)
 			{

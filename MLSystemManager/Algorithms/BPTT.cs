@@ -94,15 +94,11 @@ namespace MLSystemManager.Algorithms
 		{
 			public int feature { get; set; }
 			public int valueCount { get; set; }
-			public double minValue { get; set; }
-			public double maxValue { get; set; }
-			public InputNode(int feature, int valueCount, double minValue, double maxValue, Random rand)
+			public InputNode(int feature, int valueCount, Random rand)
 				: base(0, rand, null)
 			{
 				this.feature = feature;
 				this.valueCount = valueCount;
-				this.minValue = minValue;
-				this.maxValue = maxValue;
 			}
 		}
 
@@ -159,11 +155,11 @@ namespace MLSystemManager.Algorithms
 			m_layers = new List<List<Node>>();
 		}
 
-		public override void Train(Matrix features, Matrix labels, double[] colMin, double[] colMax)
+		public override void Train(Matrix features, Matrix labels)
 		{
 		}
 
-		public override void VTrain(VMatrix features, VMatrix labels, double[] colMin, double[] colMax)
+		public override void VTrain(VMatrix features, VMatrix labels)
 		{
 			if (m_hidden < 1)
 			{
@@ -180,7 +176,7 @@ namespace MLSystemManager.Algorithms
 			m_inputs = features.Cols();
 			for (var i = 0; i < m_inputs; i++)
 			{
-				iNodes.Add(new InputNode(i, 0, colMin[i], colMax[i], m_rand));
+				iNodes.Add(new InputNode(i, 0, m_rand));
 			}
 				
 			// add the pseudo-hidden nodes
@@ -204,7 +200,7 @@ namespace MLSystemManager.Algorithms
 					// add the input nodes
 					for (var i = 0; i < m_inputs; i++)
 					{
-						hNodes.Add(new InputNode(i, 0, colMin[i], colMax[i], m_rand));
+						hNodes.Add(new InputNode(i, 0, m_rand));
 					}
 				}
 
@@ -283,7 +279,7 @@ namespace MLSystemManager.Algorithms
 			Console.WriteLine("Epoch\tMSE (training)\t\tMSE (validation)\taccuracy (validation)");
 			if (m_outputFile != null)
 			{
-				m_outputFile.WriteLine(string.Format("{0} layers, {1} output nodes", m_layers.Count, m_layers[m_layers.Count - 1].Count));
+				m_outputFile.WriteLine($"{m_layers.Count} layers, {m_layers[m_layers.Count - 1].Count} output nodes");
 				m_outputFile.WriteLine("Momentum: " + m_momentum);
 				m_outputFile.WriteLine();
 				m_outputFile.WriteLine("Weights");
@@ -312,10 +308,10 @@ namespace MLSystemManager.Algorithms
 				// check the validation accuracy after this epoch
 				var accuracy = VMeasureAccuracy(validationFeatures, validationLabels, null);
 
-				Console.WriteLine(string.Format("{0}\t{1}\t{2}\t{3}", epoch, trainMSE, mse, accuracy));
+				Console.WriteLine($"{epoch}\t{trainMSE}\t{mse}\t{accuracy}");
 				if (m_outputFile != null)
 				{
-					m_outputFile.WriteLine(string.Format("{0}\t{1}\t{2}\t{3}", epoch, trainMSE, mse, accuracy));
+					m_outputFile.WriteLine($"{epoch}\t{trainMSE}\t{mse}\t{accuracy}");
 				}
 
 				if (m_weights != null)
@@ -389,7 +385,8 @@ namespace MLSystemManager.Algorithms
 				if (m_outputFile != null)
 				{
 					m_outputFile.WriteLine();
-					m_outputFile.WriteLine(string.Format("Best Weights (from Epoch {0}, trainMSE={1}, valMSE={2}, valAcc={3})", bestEpoch, bestTrainMSE, bestMSE, bestAccuracy));
+					m_outputFile.WriteLine(
+						$"Best Weights (from Epoch {bestEpoch}, trainMSE={bestTrainMSE}, valMSE={bestMSE}, valAcc={bestAccuracy})");
 					PrintWeights();
 				}
 			}
@@ -714,7 +711,7 @@ namespace MLSystemManager.Algorithms
 					{
 						for (var w = 0; w < node.weights.Length - 1; w++)
 						{
-							m_outputFile.Write(string.Format("{0}\t", node.weights[w]));
+							m_outputFile.Write($"{node.weights[w]}\t");
 						}
 						m_outputFile.WriteLine(node.weights[node.weights.Length - 1]);
 					}

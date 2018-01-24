@@ -51,17 +51,19 @@ namespace MLSystemManager.Algorithms
 				PrevDeltas = null;
 			}
 
-			public Node(int idx, int numWeights, Random rand)
+			public Node(int idx, int numWeights, int numNodes, Random rand)
 			{
 				Index = idx;
-
 				if (numWeights > 0)
 				{
+					// see Bengio, X. Glorot, Understanding the difficulty of training deep feedforward neuralnetworks, AISTATS 2010
+					var initMax = 4.0 * Math.Sqrt(6.0 / (numWeights - 1 + numNodes));
+
 					Weights = new double[numWeights];
 					BestWeights = new double[numWeights];
 					for (var i = 0; i < numWeights; i++)
 					{
-						Weights[i] = 0.1 - (rand.NextDouble() * 0.2);
+						Weights[i] = initMax - (rand.NextDouble() * initMax * 2.0);
 						BestWeights[i] = Weights[i];
 					}
 
@@ -120,21 +122,17 @@ namespace MLSystemManager.Algorithms
 		public class InputNode : Node
 		{
 			public int Feature { get; set; }
-			public double MinValue { get; set; }
-			public double MaxValue { get; set; }
-			public InputNode(int idx, int feature, double minValue, double maxValue, Random rand)
-				: base(idx, 0, rand)
+			public InputNode(int idx, int feature, Random rand)
+				: base(idx, 0, 0, rand)
 			{
 				Feature = feature;
-				MinValue = minValue;
-				MaxValue = maxValue;
 			}
 		}
 
 		public class HiddenNode : Node
 		{
-			public HiddenNode(int idx, int numWeights, Random rand)
-				: base(idx, numWeights, rand)
+			public HiddenNode(int idx, int numWeights, int numNodes, Random rand)
+				: base(idx, numWeights, numNodes, rand)
 			{
 			}
 			public HiddenNode(int idx, double[] weights)
@@ -148,8 +146,8 @@ namespace MLSystemManager.Algorithms
 			public bool IsContinuous { get; set; }			// true if the outout is continuous
 			public int LabelCol { get; set; }				// the label column that this output node corresponds to
 			public double LabelVal { get; set; }			// the value of the label column that this output node corresponds to
-			public OutputNode(int idx, bool isContinuous, int labelCol, double labelVal, int numWeights, Random rand)
-				: base(idx, numWeights, rand)
+			public OutputNode(int idx, bool isContinuous, int labelCol, double labelVal, int numWeights, int numNodes, Random rand)
+				: base(idx, numWeights, numNodes, rand)
 			{
 				IsContinuous = isContinuous;
 				LabelCol = labelCol;
@@ -182,11 +180,11 @@ namespace MLSystemManager.Algorithms
 			}
 		}
 
-		public override void Train(Matrix features, Matrix labels, double[] colMin, double[] colMax)
+		public override void Train(Matrix features, Matrix labels)
 		{
 		}
 
-		public override void VTrain(VMatrix features, VMatrix labels, double[] colMin, double[] colMax)
+		public override void VTrain(VMatrix features, VMatrix labels)
 		{
 			if (Layers.Count < 1)
 			{
@@ -200,7 +198,7 @@ namespace MLSystemManager.Algorithms
 				var iNodes = new List<Node>();
 				for (var i = 0; i < features.Cols(); i++)
 				{
-					iNodes.Add(new InputNode(i, i, colMin[i], colMax[i], _rand));
+					iNodes.Add(new InputNode(i, i, _rand));
 				}
 
 				var iLayer = new Layer()
@@ -221,7 +219,7 @@ namespace MLSystemManager.Algorithms
 
 					for (var n = 0; n < t; n++)
 					{
-						var node = new HiddenNode(n, prevLayer.Nodes.Count + 1, _rand);
+						var node = new HiddenNode(n, prevLayer.Nodes.Count + 1, t, _rand);
 						hNodes.Add(node);
 					}
 
@@ -240,6 +238,7 @@ namespace MLSystemManager.Algorithms
 
 				// add the output nodes
 				var oNodes = new List<Node>();
+				var oCount = 0;
 				for (var col = 0; col < labels.Cols(); col++)
 				{
 					var labelValueCount = labels.ValueCount(col);
@@ -247,14 +246,29 @@ namespace MLSystemManager.Algorithms
 					if (labelValueCount < 2)
 					{
 						// continuous
-						var node = new OutputNode(oNodes.Count, true, col, -1, prevLayer.Nodes.Count + 1, _rand);
+						oCount++;
+					}
+					else
+					{
+						oCount += labelValueCount;
+					}
+				}
+
+				for (var col = 0; col < labels.Cols(); col++)
+				{
+					var labelValueCount = labels.ValueCount(col);
+
+					if (labelValueCount < 2)
+					{
+						// continuous
+						var node = new OutputNode(oNodes.Count, true, col, -1, prevLayer.Nodes.Count + 1, oCount, _rand);
 						oNodes.Add(node);
 					}
 					else
 					{
 						for (var n = 0; n < labelValueCount; n++)
 						{
-							var node = new OutputNode(oNodes.Count, false, col, n, prevLayer.Nodes.Count + 1, _rand);
+							var node = new OutputNode(oNodes.Count, false, col, n, prevLayer.Nodes.Count + 1, oCount, _rand);
 							oNodes.Add(node);
 						}
 					}
@@ -299,8 +313,8 @@ namespace MLSystemManager.Algorithms
 			var bestEpoch = 0; // epoch number of best MSE
 			var eCount = 0; // number of epochs since the best MSE
 			var checkDone = false; // if true, check to see if we're done
-			var initialMse = double.MaxValue; // MSE for first epoch
-			var bestMse = initialMse; // best validation MSE so far
+			var initialMse = Parameters.InitialMse; // MSE for first epoch
+			var bestMse = Parameters.StartMse; // best validation MSE so far
 			double bestAccuracy = 0;
 			var batchCount = (trainFeatures.Rows() + Parameters.BatchSize - 1) / Parameters.BatchSize;
 			int countInterval = batchCount / 10;
@@ -337,11 +351,16 @@ namespace MLSystemManager.Algorithms
 
 				// check the MSE
 				var mse = VGetMSE(validationFeatures, validationLabels);
+				if ((epoch == startEpoch) && (initialMse == 0))
+				{
+					// save the initial MSE
+					initialMse = mse;
+				}
 				var accuracy = VMeasureAccuracy(validationFeatures, validationLabels, null);
 
 				if ((epoch % Parameters.SnapshotInterval) == 0)
 				{
-					SaveSnapshot(epoch, mse, accuracy);
+					SaveSnapshot(epoch, mse, initialMse, accuracy);
 				}
 
 				Console.WriteLine($"{epoch}-{eCount}\t{mse}");
@@ -353,12 +372,7 @@ namespace MLSystemManager.Algorithms
 
 				if ((epoch == startEpoch) || (mse < bestMse))
 				{
-					if (epoch == startEpoch)
-					{
-						// save the initial MSE
-						initialMse = mse;
-					}
-					else if (!checkDone && (mse < initialMse * 0.9))
+					if ((epoch != startEpoch) && !checkDone && (mse < initialMse * 0.9))
 					{
 						checkDone = true;
 					}
@@ -398,14 +412,14 @@ namespace MLSystemManager.Algorithms
 				}
 			}
 
-			SaveSnapshot(bestEpoch, bestMse, bestAccuracy, true);
+			SaveSnapshot(bestEpoch, bestMse, initialMse, bestAccuracy, true);
 		}
 
-		private void SaveSnapshot(int epoch, double mse, double accuracy, bool isFinal = false)
+		private void SaveSnapshot(int epoch, double mse, double initialMse, double accuracy, bool isFinal = false)
 		{
 			var final = isFinal ? "final_" : string.Empty;
 			var fileName = $"{Path.GetDirectoryName(Parameters.Arff)}{Path.GetFileNameWithoutExtension(Parameters.Arff)}_iter_{final}{epoch}.txt";
-			NeuralNetSave.Save(fileName, this, epoch, mse, accuracy);
+			NeuralNetSave.Save(fileName, this, epoch, mse, initialMse, accuracy);
 		}
 
 		private void TrainBatch(VMatrix features, VMatrix labels, int startIdx, int count)

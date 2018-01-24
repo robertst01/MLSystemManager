@@ -23,11 +23,11 @@ namespace MLSystemManager.Algorithms
 			m_rate = parameters.Rate;
 		}
 
-		public override void Train(Matrix features, Matrix labels, double[] colMin, double[] colMax)
+		public override void Train(Matrix features, Matrix labels)
 		{
 		}
 
-		public override void VTrain(VMatrix features, VMatrix labels, double[] colMin, double[] colMax)
+		public override void VTrain(VMatrix features, VMatrix labels)
 		{
 			if (labels.ValueCount(0) > 2)
 			{
@@ -50,13 +50,13 @@ namespace MLSystemManager.Algorithms
 			for (var instance = 0; instance < m_count; instance++)
 			{
 				double error;               // error rate for the current epoch
-				double bestError = 1.0;     // best (smallest) error rate so far
-				int eCount = 0;             // number of epochs since the best error
-				int epoch = 0;              // current epoch number
-				bool done = false;
+				var bestError = 1.0;     // best (smallest) error rate so far
+				var eCount = 0;             // number of epochs since the best error
+				var epoch = 0;              // current epoch number
+				var done = false;
 				double bestAccuracy = 0;    // best accuracy so far
-				int bestEpoch = 0;          // epoch number of best accuracy
-				double[] bestWeights = new double[features.Cols() + 1];       // best weights
+				var bestEpoch = 0;          // epoch number of best accuracy
+				var bestWeights = new double[features.Cols() + 1];       // best weights
 
 				if (m_outputFile != null)
 				{
@@ -72,13 +72,13 @@ namespace MLSystemManager.Algorithms
 					error = TrainEpoch(instance, ++epoch, features, labels);
 
 					// check the accuracy after this epoch
-					double accuracy = GetAccuracy(instance, features, labels);
+					var accuracy = GetAccuracy(instance, features, labels);
 					if (accuracy > bestAccuracy)
 					{
 						// save the best for later
 						bestAccuracy = accuracy;
 						bestEpoch = epoch;
-						for (int i = 0; i < bestWeights.Length; i++)
+						for (var i = 0; i < bestWeights.Length; i++)
 						{
 							bestWeights[i] = m_weights[instance][i];
 						}
@@ -120,7 +120,7 @@ namespace MLSystemManager.Algorithms
 
 				if (bestEpoch != epoch)
 				{
-					for (int i = 0; i < bestWeights.Length; i++)
+					for (var i = 0; i < bestWeights.Length; i++)
 					{
 						m_weights[instance][i] = bestWeights[i] ;
 					}
@@ -151,7 +151,7 @@ namespace MLSystemManager.Algorithms
 				Console.WriteLine(epoch);
 			}
 
-			int eCount = 0;
+			var eCount = 0;
 
 			for (var row = 0; row < features.Rows(); row++)
 			{
@@ -166,8 +166,8 @@ namespace MLSystemManager.Algorithms
 				// add the bias
 				net += m_weights[instance][m_weights[instance].Length - 1];
                 
-				double z = (net > 0 ? 1.0 : 0);
-				double t = labels.Row(row)[0];
+				var z = (net > 0 ? 1.0 : 0);
+				var t = labels.Row(row)[0];
 				if (m_count > 2)
 				{
 					t = (t == instance) ? 1.0 : 0;
@@ -203,7 +203,7 @@ namespace MLSystemManager.Algorithms
 				Console.WriteLine(m_weights[instance][m_weights[instance].Length - 1]);
 			}
 
-			double error = 1.0 * eCount / features.Rows();
+			var error = 1.0 * eCount / features.Rows();
 
 			if (m_outputFile == null)
 			{
@@ -235,8 +235,8 @@ namespace MLSystemManager.Algorithms
 					// add the bias
 				net += m_weights[instance][m_weights[instance].Length - 1];
 
-				double z = (net > 0 ? 1.0 : 0);
-				double t = labels.Row(row)[0];
+				var z = (net > 0 ? 1.0 : 0);
+				var t = labels.Row(row)[0];
 				if (m_count > 2)
 				{
 					t = (t == instance) ? 1.0 : 0;
@@ -253,7 +253,7 @@ namespace MLSystemManager.Algorithms
 
 		public override void Predict(double[] features, double[] labels)
 		{
-			double[] net = new double[m_count];
+			var net = new double[m_count];
 
 			// calculate the net values
 			for (var instance = 0; instance < m_count; instance++)
@@ -269,7 +269,7 @@ namespace MLSystemManager.Algorithms
 				net[instance] += m_weights[instance][m_weights[instance].Length - 1];
 			}
 
-			double z = (net[0] > 0 ? 1.0 : 0);
+			var z = (net[0] > 0 ? 1.0 : 0);
 
 			// find the biggest
 			if (m_count > 2)

@@ -95,14 +95,10 @@ namespace MLSystemManager.Algorithms
 		public class InputNode : Node
 		{
 			public int feature { get; set; }
-			public double minValue { get; set; }
-			public double maxValue { get; set; }
-			public InputNode(int idx, int feature, double minValue, double maxValue, Random rand)
+			public InputNode(int idx, int feature, Random rand)
 				: base(idx, 0, rand)
 			{
 				this.feature = feature;
-				this.minValue = minValue;
-				this.maxValue = maxValue;
 			}
 		}
 
@@ -163,11 +159,11 @@ namespace MLSystemManager.Algorithms
 			m_normalizeOutputs = parameters.NormalizeOutputs;
 		}
 
-		public override void Train(Matrix features, Matrix labels, double[] colMin, double[] colMax)
+		public override void Train(Matrix features, Matrix labels)
 		{
 		}
 
-		public override void VTrain(VMatrix features, VMatrix labels, double[] colMin, double[] colMax)
+		public override void VTrain(VMatrix features, VMatrix labels)
 		{
 			if (m_hidden.Length < 1)
 			{
@@ -178,7 +174,7 @@ namespace MLSystemManager.Algorithms
 			var iNodes = new List<Node>();
 			for (var i = 0; i < features.Cols(); i++)
 			{
-				iNodes.Add(new InputNode(i, i, colMin[i], colMax[i], m_rand));
+				iNodes.Add(new InputNode(i, i, m_rand));
 			}
 
 			m_layers.Add(iNodes);

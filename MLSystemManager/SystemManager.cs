@@ -110,14 +110,7 @@ namespace MLSystemManager
 				}
 				var confusion = new Matrix();
 				var startTime = DateTime.Now.Ticks;
-				var colMin = new double[data.Cols()];
-				var colMax = new double[data.Cols()];
-				for (var col = 0; col < data.Cols(); col++)
-				{
-					colMin[col] = data.ColumnMinOrig(col);
-					colMax[col] = data.ColumnMaxOrig(col);
-				}
-				learner.VTrain(features, labels, colMin, colMax);
+				learner.VTrain(features, labels);
 				var elapsedTime = new TimeSpan(DateTime.Now.Ticks - startTime);
 				Console.WriteLine("Time to train (in seconds): " + elapsedTime.TotalSeconds);
 				if (parameters.Outputs > 0)
@@ -148,14 +141,7 @@ namespace MLSystemManager
 				var features = new VMatrix(data, 0, 0, data.Rows(), data.Cols() - parameters.Outputs);
 				var labels = new VMatrix(data, 0, data.Cols() - parameters.Outputs, data.Rows(), parameters.Outputs);
 				var startTime = DateTime.Now.Ticks;
-				var colMin = new double[data.Cols()];
-				var colMax = new double[data.Cols()];
-				for (var col = 0; col < data.Cols(); col++)
-				{
-					colMin[col] = data.ColumnMinOrig(col);
-					colMax[col] = data.ColumnMaxOrig(col);
-				}
-				learner.VTrain(features, labels, colMin, colMax);
+				learner.VTrain(features, labels);
 				var elapsedTime = new TimeSpan(DateTime.Now.Ticks - startTime);
 				Console.WriteLine("Time to train (in seconds): " + elapsedTime.TotalSeconds);
 				var trainAccuracy = learner.VMeasureAccuracy(features, labels, null);
@@ -217,14 +203,7 @@ namespace MLSystemManager
 				var testFeatures = new VMatrix(vData, trainSize, 0, vData.Rows() - trainSize, vData.Cols() - parameters.Outputs);
 				var testLabels = new VMatrix(vData, trainSize, vData.Cols() - parameters.Outputs, vData.Rows() - trainSize, parameters.Outputs);
 				var startTime = DateTime.Now.Ticks;
-				var colMin = new double[data.Cols()];
-				var colMax = new double[data.Cols()];
-				for (var col = 0; col < data.Cols(); col++)
-				{
-					colMin[col] = vData.ColumnMinOrig(col);
-					colMax[col] = data.ColumnMaxOrig(col);
-				}
-				learner.VTrain(trainFeatures, trainLabels, colMin, colMax);
+				learner.VTrain(trainFeatures, trainLabels);
 				var elapsedTime = new TimeSpan(DateTime.Now.Ticks - startTime);
 				Console.WriteLine("Time to train (in seconds): " + elapsedTime.TotalSeconds);
 				var trainAccuracy = learner.VMeasureAccuracy(trainFeatures, trainLabels, null);
@@ -268,14 +247,7 @@ namespace MLSystemManager
 						trainFeatures.Add(data, end, 0, data.Rows() - end);
 						trainLabels.Add(data, end, data.Cols() - parameters.Outputs, data.Rows() - end);
 						var startTime = DateTime.Now.Ticks;
-						var colMin = new double[data.Cols()];
-						var colMax = new double[data.Cols()];
-						for (var col = 0; col < data.Cols(); col++)
-						{
-							colMin[col] = data.ColumnMinOrig(col);
-							colMax[col] = data.ColumnMaxOrig(col);
-						}
-						learner.Train(trainFeatures, trainLabels, colMin, colMax);
+						learner.Train(trainFeatures, trainLabels);
 						ticks = DateTime.Now.Ticks - startTime;
 						var accuracy = learner.MeasureAccuracy(testFeatures, testLabels, null);
 						sumAccuracy += accuracy;

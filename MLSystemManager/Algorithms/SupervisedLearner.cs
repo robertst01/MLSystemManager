@@ -15,8 +15,8 @@ namespace MLSystemManager.Algorithms
 
 		// Before you call this method, you need to divide your data
 		// into a feature matrix and a label matrix.
-		public abstract void Train(Matrix features, Matrix labels, double[] colMin, double[] colMax);
-		public abstract void VTrain(VMatrix features, VMatrix labels, double[] colMin, double[] colMax);
+		public abstract void Train(Matrix features, Matrix labels);
+		public abstract void VTrain(VMatrix features, VMatrix labels);
 
 		// A feature vector goes in. A label vector comes out. (Some supervised
 		// learning algorithms only support one-dimensional label vectors. Some

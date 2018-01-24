@@ -98,15 +98,11 @@ namespace MLSystemManager.Algorithms
 		{
 			public int feature { get; set; }
 			public int valueCount { get; set; }
-			public double minValue { get; set; }
-			public double maxValue { get; set; }
-			public InputNode(int feature, int valueCount, double minValue, double maxValue, Random rand)
+			public InputNode(int feature, int valueCount, Random rand)
 				: base(0, rand)
 			{
 				this.feature = feature;
 				this.valueCount = valueCount;
-				this.minValue = minValue;
-				this.maxValue = maxValue;
 			}
 		}
 
@@ -168,11 +164,11 @@ namespace MLSystemManager.Algorithms
 			m_layers = new List<List<Node>>();
 		}
 
-		public override void Train(Matrix features, Matrix labels, double[] colMin, double[] colMax)
+		public override void Train(Matrix features, Matrix labels)
 		{
 		}
 
-		public override void VTrain(VMatrix features, VMatrix labels, double[] colMin, double[] colMax)
+		public override void VTrain(VMatrix features, VMatrix labels)
 		{
 			if (m_hidden.Length < 1)
 			{
@@ -180,16 +176,16 @@ namespace MLSystemManager.Algorithms
 			}
 
 			// add the input nodes
-			List<Node> iNodes = new List<Node>();
+			var iNodes = new List<Node>();
 			for (var i = 0; i < features.Cols(); i++)
 			{
-				iNodes.Add(new InputNode(i, 0, colMin[i], colMax[i], m_rand));
+				iNodes.Add(new InputNode(i, 0, m_rand));
 			}
 
 			m_layers.Add(iNodes);
 
 			// figure out how many outputs we need
-			int oCount = 0;
+			var oCount = 0;
 			for (var col = 0; col < labels.Cols(); col++)
 			{
 				var labelValueCount = labels.ValueCount(col);
@@ -205,11 +201,11 @@ namespace MLSystemManager.Algorithms
 				}
 			}
 
-			int trainSize = (int)(0.75 * features.Rows());
-			VMatrix trainFeatures = new VMatrix(features, 0, 0, trainSize, features.Cols());
-			VMatrix trainLabels = new VMatrix(labels, 0, 0, trainSize, labels.Cols());
-			VMatrix validationFeatures = new VMatrix(features, trainSize, 0, features.Rows() - trainSize, features.Cols());
-			VMatrix validationLabels = new VMatrix(labels, trainSize, 0, labels.Rows() - trainSize, labels.Cols());
+			var trainSize = (int)(0.75 * features.Rows());
+			var trainFeatures = new VMatrix(features, 0, 0, trainSize, features.Cols());
+			var trainLabels = new VMatrix(labels, 0, 0, trainSize, labels.Cols());
+			var validationFeatures = new VMatrix(features, trainSize, 0, features.Rows() - trainSize, features.Cols());
+			var validationLabels = new VMatrix(labels, trainSize, 0, labels.Rows() - trainSize, labels.Cols());
 
 			Console.Write("Layers: ");
 			Console.Write(features.Cols());
@@ -223,7 +219,7 @@ namespace MLSystemManager.Algorithms
 			Console.WriteLine("Momentum: " + m_momentum);
 			Console.WriteLine("C: " + m_corruptLevel);
 			Console.WriteLine("AF: " + m_activation);
-			Console.WriteLine(string.Format("AParam: {0},{1},{2},{3}", m_actLeak, m_actThreshold, m_actSlope, m_actRandom));
+			Console.WriteLine($"AParam: {m_actLeak},{m_actThreshold},{m_actSlope},{m_actRandom}");
 			Console.WriteLine("TrainAll: " + m_trainAll);
 			Console.WriteLine("R-E-C\tMSE (validation)");
 			if (m_outputFile != null)
@@ -240,20 +236,20 @@ namespace MLSystemManager.Algorithms
 				m_outputFile.WriteLine("Momentum: " + m_momentum);
 				m_outputFile.WriteLine("C: " + m_corruptLevel);
 				m_outputFile.WriteLine("AF: " + m_activation);
-				m_outputFile.WriteLine(string.Format("AParam: {0},{1},{2},{3}", m_actLeak, m_actThreshold, m_actSlope, m_actRandom));
+				m_outputFile.WriteLine($"AParam: {m_actLeak},{m_actThreshold},{m_actSlope},{m_actRandom}");
 				m_outputFile.WriteLine("TrainAll: " + m_trainAll);
 				m_outputFile.WriteLine();
 				m_outputFile.WriteLine("R-E-C\tMSE (validation)");
 			}
 
-			int maxRounds = (m_trainAll ? m_hidden.Length : m_hidden.Length + 1);
-			for (int round = 1; round <= maxRounds; round++)
+			var maxRounds = (m_trainAll ? m_hidden.Length : m_hidden.Length + 1);
+			for (var round = 1; round <= maxRounds; round++)
 			{
 				if (round <= m_hidden.Length)
 				{
 					// add hidden nodes
-					int prevNodes = m_layers[m_layers.Count - 1].Count + 1;
-					List<Node> hNodes = new List<Node>();
+					var prevNodes = m_layers[m_layers.Count - 1].Count + 1;
+					var hNodes = new List<Node>();
 
 					for (var n = 0; n < m_hidden[m_layers.Count - 1]; n++)
 					{
@@ -265,7 +261,7 @@ namespace MLSystemManager.Algorithms
 					prevNodes = hNodes.Count + 1;
 
 					// add output nodes
-					List<Node> oNodes = new List<Node>();
+					var oNodes = new List<Node>();
 
 					// figure out how many outputs we need
 					for (var col = 0; col < labels.Cols(); col++)
@@ -291,12 +287,12 @@ namespace MLSystemManager.Algorithms
 					InitNodes();
 				}
 
-				int epoch = 0;							// current epoch number
-				int bestEpoch = 0;						// epoch number of best MSE
-				int eCount = 0;							// number of epochs since the best MSE
-				bool checkDone = false;					// if true, check to see if we're done
-				double initialMSE = double.MaxValue;	// MSE for first epoch
-				double bestMSE = double.MaxValue;		// best validation MSE so far
+				var epoch = 0;							// current epoch number
+				var bestEpoch = 0;						// epoch number of best MSE
+				var eCount = 0;							// number of epochs since the best MSE
+				var checkDone = false;					// if true, check to see if we're done
+				var initialMSE = double.MaxValue;	// MSE for first epoch
+				var bestMSE = double.MaxValue;		// best validation MSE so far
 
 				for (; ; )
 				{
@@ -305,12 +301,12 @@ namespace MLSystemManager.Algorithms
 					TrainEpoch(++epoch, trainFeatures, trainLabels, round < m_hidden.Length, m_trainAll || (round > m_hidden.Length));
 
 					// check the MSE after this epoch
-					double mse = VGetMSE(validationFeatures, validationLabels);
+					var mse = VGetMSE(validationFeatures, validationLabels);
 
-					Console.WriteLine(string.Format("{0}-{1}-{2}\t{3}", round, epoch, eCount, mse));
+					Console.WriteLine($"{round}-{epoch}-{eCount}\t{mse}");
 					if (m_outputFile != null)
 					{
-						m_outputFile.WriteLine(string.Format("{0}-{1}-{2}\t{3}", round, epoch, eCount, mse));
+						m_outputFile.WriteLine($"{round}-{epoch}-{eCount}\t{mse}");
 						m_outputFile.Flush();
 					}
 
@@ -373,11 +369,11 @@ namespace MLSystemManager.Algorithms
 						}
 					}
 
-					Console.WriteLine(string.Format("Best Weights (from Epoch {0}, valMSE={1})", bestEpoch, bestMSE));
+					Console.WriteLine($"Best Weights (from Epoch {bestEpoch}, valMSE={bestMSE})");
 					if (m_outputFile != null)
 					{
 						m_outputFile.WriteLine();
-						m_outputFile.WriteLine(string.Format("Best Weights (from Epoch {0}, valMSE={1})", bestEpoch, bestMSE));
+						m_outputFile.WriteLine($"Best Weights (from Epoch {bestEpoch}, valMSE={bestMSE})");
 						m_outputFile.Flush();
 					}
 				}
@@ -400,7 +396,7 @@ namespace MLSystemManager.Algorithms
 		{
 			for (var layer = 0; layer < m_layers.Count; layer++)
 			{
-				for (int idx = 0; idx < m_layers[layer].Count; idx++)
+				for (var idx = 0; idx < m_layers[layer].Count; idx++)
 				{
 					m_layers[layer][idx].index = idx;
 				}
@@ -409,10 +405,10 @@ namespace MLSystemManager.Algorithms
 
 		private void TrainEpoch(int epoch, VMatrix features, VMatrix labels, bool corrupt, bool trainAll)
 		{
-			object lo = new object();
+			var lo = new object();
 
 			Console.Write("TrainEpoch ");
-			int cl = Console.CursorLeft;
+			var cl = Console.CursorLeft;
 
 			for (var row = 0; row < features.Rows(); row++)
 			{
@@ -488,7 +484,7 @@ namespace MLSystemManager.Algorithms
 				}
 
 				// calculate the error and weight changes
-				int minLayer = (trainAll ? 0 : m_layers.Count - 3);
+				var minLayer = (trainAll ? 0 : m_layers.Count - 3);
 				for (var layer = m_layers.Count - 1; layer > minLayer; layer--)
 				{
 #if parallel
@@ -518,8 +514,8 @@ namespace MLSystemManager.Algorithms
 						if (layer == m_layers.Count - 1)
 						{
 							// output layer
-							OutputNode oNode = node as OutputNode;
-							double target = labels.Get(row, oNode.labelCol);
+							var oNode = node as OutputNode;
+							var target = labels.Get(row, oNode.labelCol);
 
 							if (!oNode.isContinuous)
 							{
@@ -615,10 +611,10 @@ namespace MLSystemManager.Algorithms
 		public override double VGetMSE(VMatrix features, VMatrix labels)
 		{
 			double sse = 0;
-			object lo = new object();
+			var lo = new object();
 
 			Console.Write("VGetMSE ");
-			int cl = Console.CursorLeft;
+			var cl = Console.CursorLeft;
 
 			for (var row = 0; row < features.Rows(); row++)
 			{
@@ -675,8 +671,8 @@ namespace MLSystemManager.Algorithms
 				// calculate the error of the output layer
 				for (var n = 0; n < m_layers[m_layers.Count - 1].Count; n++)
 				{
-					OutputNode node = m_layers[m_layers.Count - 1][n] as OutputNode;
-					double target = labels.Get(row, node.labelCol);
+					var node = m_layers[m_layers.Count - 1][n] as OutputNode;
+					var target = labels.Get(row, node.labelCol);
 
 					if (!node.isContinuous)
 					{
@@ -711,7 +707,7 @@ namespace MLSystemManager.Algorithms
 				{
 					for (var w = 0; w < node.weights.Length - 1; w++)
 					{
-						m_outputFile.Write(string.Format("{0}\t", node.weights[w]));
+						m_outputFile.Write($"{node.weights[w]}\t");
 					}
 					m_outputFile.WriteLine(node.weights[node.weights.Length - 1]);
 				}
@@ -722,7 +718,7 @@ namespace MLSystemManager.Algorithms
 
 		public override void Predict(double[] features, double[] labels)
 		{
-			object lo = new object();
+			var lo = new object();
 
 			for (var layer = 0; layer < m_layers.Count; layer++)
 			{
@@ -766,10 +762,10 @@ namespace MLSystemManager.Algorithms
 				});
 			}
 
-			int labelIdx = 0;
+			var labelIdx = 0;
 			for (var n = 0; n < m_layers[m_layers.Count - 1].Count; n++)
 			{
-				OutputNode node = m_layers[m_layers.Count - 1][n] as OutputNode;
+				var node = m_layers[m_layers.Count - 1][n] as OutputNode;
 
 				if (node.isContinuous)
 				{
@@ -778,13 +774,13 @@ namespace MLSystemManager.Algorithms
 				else
 				{
 					// find the max output for this labelCol
-					double max = node.output;
+					var max = node.output;
 					var labelCol = node.labelCol;
-					double labelVal = node.labelVal;
+					var labelVal = node.labelVal;
 					int nIdx;
 					for (nIdx = 1; nIdx + n < m_layers[m_layers.Count - 1].Count; nIdx++)
 					{
-						OutputNode tn = m_layers[m_layers.Count - 1][n + nIdx] as OutputNode;
+						var tn = m_layers[m_layers.Count - 1][n + nIdx] as OutputNode;
 						if (tn.labelCol != labelCol)
 						{
 							break;

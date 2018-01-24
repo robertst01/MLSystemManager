@@ -94,15 +94,11 @@ namespace MLSystemManager.Algorithms
 		{
 			public int feature { get; set; }
 			public int valueCount { get; set; }
-			public double minValue { get; set; }
-			public double maxValue { get; set; }
-			public InputNode(int feature, int valueCount, double minValue, double maxValue, Random rand)
+			public InputNode(int feature, int valueCount, Random rand)
 				: base(0, rand)
 			{
 				this.feature = feature;
 				this.valueCount = valueCount;
-				this.minValue = minValue;
-				this.maxValue = maxValue;
 			}
 		}
 
@@ -162,11 +158,11 @@ namespace MLSystemManager.Algorithms
 			m_layers = new List<List<List<Node>>>();
 		}
 
-		public override void Train(Matrix features, Matrix labels, double[] colMin, double[] colMax)
+		public override void Train(Matrix features, Matrix labels)
 		{
 		}
 
-		public override void VTrain(VMatrix features, VMatrix labels, double[] colMin, double[] colMax)
+		public override void VTrain(VMatrix features, VMatrix labels)
 		{
 			if (m_hidden.Length < 1)
 			{
@@ -205,7 +201,7 @@ namespace MLSystemManager.Algorithms
 				List<Node> iNodes = new List<Node>();
 				for (var i = 0; i < features.Cols(); i++)
 				{
-					iNodes.Add(new InputNode(i, 0, colMin[i], colMax[i], m_rand));
+					iNodes.Add(new InputNode(i, 0, m_rand));
 				}
 
 				m_layers[plane].Add(iNodes);

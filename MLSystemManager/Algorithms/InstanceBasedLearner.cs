@@ -27,7 +27,7 @@ namespace MLSystemManager.Algorithms
 			Prune = parameters.Prune;
 		}
 
-		public override void Train(Matrix features, Matrix labels, double[] colMin, double[] colMax)
+		public override void Train(Matrix features, Matrix labels)
 		{
 			Features = new Matrix(features, 0, 0, features.Rows(), features.Cols());
 			Labels = new Matrix(labels, 0, 0, labels.Rows(), labels.Cols());
@@ -39,29 +39,29 @@ namespace MLSystemManager.Algorithms
 			}
 		}
 
-		public override void VTrain(VMatrix features, VMatrix labels, double[] colMin, double[] colMax)
+		public override void VTrain(VMatrix features, VMatrix labels)
 		{
 		}
 
 		private void DoPrune()
 		{
-			bool isContinuous = (Labels.ValueCount(0) < 2);
+			var isContinuous = (Labels.ValueCount(0) < 2);
 
 			for (var row = 0; row < Features.Rows(); row++)
 			{
-				int[] nearest = FindKnn(Features.Row(row), new int[1] { row });
-				int with = 0;
+				var nearest = FindKnn(Features.Row(row), new int[1] { row });
+				var with = 0;
 				double withSSE = 0;
-				double[] pred = new double[1];
+				var pred = new double[1];
 
 				for (var n = 0; n < nearest.Length; n++)
 				{
 					pred[0] = 0;
-					double[] targ = Labels.Row(nearest[n]);
+					var targ = Labels.Row(nearest[n]);
 					GetOutput(FindKnn(Features.Row(nearest[n]), new int[1] { nearest[n] }), pred);
 					if (isContinuous)
 					{
-						double delta = targ[0] - pred[0];
+						var delta = targ[0] - pred[0];
 						withSSE += (delta * delta);
 					}
 					else if (pred[0] == targ[0])
@@ -70,16 +70,16 @@ namespace MLSystemManager.Algorithms
 					}
 				}
 
-				int without = 0;
+				var without = 0;
 				double withoutSSE = 0;
 				for (var n = 0; n < nearest.Length; n++)
 				{
 					pred[0] = 0;
-					double[] targ = Labels.Row(nearest[n]);
+					var targ = Labels.Row(nearest[n]);
 					GetOutput(FindKnn(Features.Row(nearest[n]), new int[2] { row, nearest[n] }), pred);
 					if (isContinuous)
 					{
-						double delta = targ[0] - pred[0];
+						var delta = targ[0] - pred[0];
 						withoutSSE += (delta * delta);
 					}
 					else if (pred[0] == targ[0])
@@ -89,7 +89,7 @@ namespace MLSystemManager.Algorithms
 				}
 
 
-				bool remove = false;
+				var remove = false;
 
 				if (isContinuous)
 				{
@@ -127,7 +127,7 @@ namespace MLSystemManager.Algorithms
 		/// <returns></returns>
 		private int[] FindKnn(double[] features, int[] ignore = null)
 		{
-			int[] nearest = new int[K];
+			var nearest = new int[K];
 
 			// initialize the nearest
 			for (var i = 0; i < nearest.Length; i++)
@@ -184,7 +184,7 @@ namespace MLSystemManager.Algorithms
 					}
 					else
 					{
-						double d = Math.Pow(features[col] - Features.Get(row, col), 2);
+						var d = Math.Pow(features[col] - Features.Get(row, col), 2);
 						distance += d;
 					}
 				}
@@ -222,7 +222,7 @@ namespace MLSystemManager.Algorithms
 					}
 					else
 					{
-						double d = Math.Abs(features[col] - Features.Get(row, col)) / (Math.Abs(features[col]) + Math.Abs(Features.Get(row, col)));
+						var d = Math.Abs(features[col] - Features.Get(row, col)) / (Math.Abs(features[col]) + Math.Abs(Features.Get(row, col)));
 						distance += d;
 					}
 				}
@@ -258,7 +258,7 @@ namespace MLSystemManager.Algorithms
 					}
 					else
 					{
-						double d = Math.Abs(features[col] - Features.Get(row, col));
+						var d = Math.Abs(features[col] - Features.Get(row, col));
 						distance += d;
 					}
 				}
@@ -282,7 +282,7 @@ namespace MLSystemManager.Algorithms
 		private double GetMinkowskyDistance(double[] features, int row)
 		{
 			double distance = 0;
-			double r = 3.0;
+			var r = 3.0;
 
 			for (var col = 0; col < Features.Cols(); col++)
 			{
@@ -295,7 +295,7 @@ namespace MLSystemManager.Algorithms
 					}
 					else
 					{
-						double d = Math.Pow(Math.Abs(features[col] - Features.Get(row, col)), r);
+						var d = Math.Pow(Math.Abs(features[col] - Features.Get(row, col)), r);
 						distance += d;
 					}
 				}
@@ -320,17 +320,17 @@ namespace MLSystemManager.Algorithms
 		private int GetOutput(int[] nearest, double[] labels)
 		{
 			double sumWeights = 0;
-			bool isContinuous = Labels.ValueCount(0) < 2;
-			double[] output = new double[isContinuous ? 1 : Labels.ValueCount(0)];
-			int[] count = new int[output.Length];
-			int result = 0;
+			var isContinuous = Labels.ValueCount(0) < 2;
+			var output = new double[isContinuous ? 1 : Labels.ValueCount(0)];
+			var count = new int[output.Length];
+			var result = 0;
 
 			// calculate the output
 			for (var k = 0; k < nearest.Length; k++)
 			{
 				if (nearest[k] >= 0)
 				{
-					double weight = 1.0;
+					var weight = 1.0;
 					if (Distance && (Distances[nearest[k]] > 0))
 					{
 						weight /= Math.Pow(Distances[nearest[k]], 2);
@@ -345,7 +345,7 @@ namespace MLSystemManager.Algorithms
 					}
 					else
 					{
-						int idx = (int)Labels.Get(nearest[k], 0);
+						var idx = (int)Labels.Get(nearest[k], 0);
 						output[idx] += weight;
 						count[idx]++;
 					}
@@ -358,7 +358,7 @@ namespace MLSystemManager.Algorithms
 			}
 			else
 			{
-				double max = double.MinValue;
+				var max = double.MinValue;
 				for (var c = 0; c < output.Length; c++)
 				{
 					if (output[c] > max)
@@ -375,7 +375,7 @@ namespace MLSystemManager.Algorithms
 
 		public override void Predict(double[] features, double[] labels)
 		{
-			int[] nearest = FindKnn(features);
+			var nearest = FindKnn(features);
 			GetOutput(nearest, labels);
 		}
 	}

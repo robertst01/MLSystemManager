@@ -60,7 +60,7 @@ namespace MLSystemManager.Algorithms
 			m_prune = parameters.Prune;
 		}
 
-		public override void Train(Matrix features, Matrix labels, double[] colMin, double[] colMax)
+		public override void Train(Matrix features, Matrix labels)
 		{
 			int trainSize = (int)(0.75 * features.Rows());
 			if (!m_prune)
@@ -148,7 +148,7 @@ namespace MLSystemManager.Algorithms
 			}
 		}
 
-		public override void VTrain(VMatrix features, VMatrix labels, double[] colMin, double[] colMax)
+		public override void VTrain(VMatrix features, VMatrix labels)
 		{
 		}
 
